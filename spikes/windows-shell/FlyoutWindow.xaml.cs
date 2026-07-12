@@ -260,7 +260,7 @@ internal sealed class MetricRowViewModel
                 {
                     Label = line.Label,
                     PrimaryText = $"{left:0}% left",
-                    SecondaryText = "",
+                    SecondaryText = ResetFormatter.FormatResetRelative(line.ResetsAt) ?? "",
                     PaceText = "",
                     LeftPercent = left,
                     BarBrush = brush,

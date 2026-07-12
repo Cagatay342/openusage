@@ -18,12 +18,13 @@ final class SidecarIPCTests: XCTestCase {
     }
 
     func testSnapshotMapperProgressAndText() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
         let snapshot = ProviderSnapshot(
             providerID: "claude",
             displayName: "Claude",
             plan: "Max",
             lines: [
-                .progress(label: "Session", used: 42, limit: 100, format: .percent),
+                .progress(label: "Session", used: 42, limit: 100, format: .percent, resetsAt: reset),
                 .text(label: "Spend", value: "$1.23")
             ]
         )
@@ -38,7 +39,9 @@ final class SidecarIPCTests: XCTestCase {
         XCTAssertEqual(dto.metricLines.count, 2)
         XCTAssertEqual(dto.metricLines[0].kind, "progress")
         XCTAssertTrue(dto.metricLines[0].display.contains("Session"))
+        XCTAssertEqual(dto.metricLines[0].resetsAt, reset.timeIntervalSince1970)
         XCTAssertEqual(dto.metricLines[1].display, "Spend: $1.23")
+        XCTAssertNil(dto.metricLines[1].resetsAt)
     }
 
     func testSnapshotMapperNoCredentials() {

@@ -109,6 +109,8 @@ internal sealed class TrayController : IDisposable
     private System.Drawing.Icon? _trayIcon;
     private readonly DispatcherTimer _reconnectTimer;
     private readonly DispatcherTimer _periodicRefreshTimer;
+    private readonly DispatcherTimer _resetCountdownTimer;
+    private IReadOnlyList<SidecarProvider> _lastProviders = [];
     private bool _refreshInFlight;
 
     /// <summary>Same fixed cadence as macOS <c>RefreshSetting.interval</c> (5 minutes).</summary>
@@ -149,6 +151,9 @@ internal sealed class TrayController : IDisposable
             await RefreshAllAsync();
         };
 
+        _resetCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _resetCountdownTimer.Tick += (_, _) => RefreshResetCountdowns();
+
         _supervisor.SidecarExited += () =>
         {
             WpfApplication.Current.Dispatcher.BeginInvoke(() => _client.Disconnect());
@@ -159,6 +164,7 @@ internal sealed class TrayController : IDisposable
     {
         TrayActions.RegisterRefresh(() => _ = RefreshAllAsync());
         TrayActions.RegisterLaunchAtLoginChanged(OnLaunchAtLoginChanged);
+        EnsureLaunchAtLoginEnabled();
         _strip.Show();
         // Apply after first layout so Width/Height are real when clamping.
         _strip.Dispatcher.BeginInvoke(() =>
@@ -306,6 +312,7 @@ internal sealed class TrayController : IDisposable
         if (_flyout is { IsVisible: true })
         {
             _flyout.Hide();
+            _resetCountdownTimer.Stop();
             return;
         }
         ShowFlyout();
@@ -346,6 +353,7 @@ internal sealed class TrayController : IDisposable
             PositionFlyout(_flyout);
             _flyout.Opacity = 1;
             _flyout.Activate();
+            _resetCountdownTimer.Start();
         }, System.Windows.Threading.DispatcherPriority.Loaded);
         _ = RefreshFlyoutAsync();
     }
@@ -427,10 +435,15 @@ internal sealed class TrayController : IDisposable
             }
 
             var providers = response.Providers ?? [];
+            _lastProviders = providers;
             ApplyTraySummary(providers);
             _flyout?.SetProviders(providers);
             EvaluateQuotaToasts(providers);
             _reconnectTimer.Stop();
+            if (_flyout is { IsVisible: true })
+            {
+                _resetCountdownTimer.Start();
+            }
         }
         catch (Exception ex)
         {
@@ -540,6 +553,46 @@ internal sealed class TrayController : IDisposable
         _strip.Update([]);
     }
 
+    private void EnsureLaunchAtLoginEnabled()
+    {
+        if (_settings.LaunchAtLogin && AutoStartManager.IsEnabled())
+        {
+            return;
+        }
+
+        _settings.LaunchAtLogin = true;
+        _settings.Save();
+        try
+        {
+            AutoStartManager.SetEnabled(true);
+        }
+        catch (Exception ex)
+        {
+            ShellLogger.Instance.Warn("autostart", $"Could not enable launch at login: {ex.Message}");
+            _settings.LaunchAtLogin = AutoStartManager.IsEnabled();
+            _settings.Save();
+        }
+
+        foreach (WinForms.ToolStripItem item in _notifyIcon.ContextMenuStrip!.Items)
+        {
+            if (item is WinForms.ToolStripMenuItem menu && menu.Text == "Launch at Login")
+            {
+                menu.Checked = _settings.LaunchAtLogin;
+                break;
+            }
+        }
+    }
+
+    private void RefreshResetCountdowns()
+    {
+        if (_flyout is not { IsVisible: true } || _lastProviders.Count == 0)
+        {
+            return;
+        }
+
+        _flyout.SetProviders(_lastProviders);
+    }
+
     private void Shutdown()
     {
         ShellLogger.Instance.Info("lifecycle", "Quit requested");
@@ -551,6 +604,7 @@ internal sealed class TrayController : IDisposable
     public void Dispose()
     {
         _periodicRefreshTimer.Stop();
+        _resetCountdownTimer.Stop();
         _reconnectTimer.Stop();
         _client.Dispose();
         _supervisor.Dispose();

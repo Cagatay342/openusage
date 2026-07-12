@@ -66,6 +66,10 @@ public sealed class SidecarMetricLine
 
     [JsonPropertyName("display")]
     public string Display { get; set; } = "";
+
+    /// <summary>Unix epoch seconds for the next quota reset (progress rows only).</summary>
+    [JsonPropertyName("resetsAt")]
+    public double? ResetsAt { get; set; }
 }
 
 public sealed class SidecarClient : IDisposable

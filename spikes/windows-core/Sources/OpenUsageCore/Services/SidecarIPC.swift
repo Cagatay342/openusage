@@ -56,6 +56,8 @@ public struct SidecarMetricLineDTO: Codable, Sendable, Equatable {
     public let kind: String
     public let label: String
     public let display: String
+    /// Unix epoch seconds for the next quota reset; progress rows only.
+    public let resetsAt: Double?
 }
 
 public enum SidecarIPCCodec {
@@ -164,10 +166,10 @@ enum SidecarSnapshotMapper {
         lines.compactMap { line in
             switch line {
             case .text(let label, let value, _, _):
-                return SidecarMetricLineDTO(kind: "text", label: label, display: "\(label): \(value)")
+                return SidecarMetricLineDTO(kind: "text", label: label, display: "\(label): \(value)", resetsAt: nil)
             case .badge(let label, let text, _, _):
-                return SidecarMetricLineDTO(kind: "badge", label: label, display: "\(label): \(text)")
-            case .progress(let label, let used, let limit, let format, _, _, _):
+                return SidecarMetricLineDTO(kind: "badge", label: label, display: "\(label): \(text)", resetsAt: nil)
+            case .progress(let label, let used, let limit, let format, let resetsAt, _, _):
                 let usedText = formatNumber(used, format: format)
                 let limitText = formatNumber(limit, format: format)
                 let display: String
@@ -177,12 +179,17 @@ enum SidecarSnapshotMapper {
                 default:
                     display = "\(label): \(usedText)/\(limitText)"
                 }
-                return SidecarMetricLineDTO(kind: "progress", label: label, display: display)
+                return SidecarMetricLineDTO(
+                    kind: "progress",
+                    label: label,
+                    display: display,
+                    resetsAt: resetsAt.map(\.timeIntervalSince1970)
+                )
             case .values(let label, let values, _, _, _, _):
                 let parts = values.map { MetricFormatter.string(for: $0, style: .row) }
-                return SidecarMetricLineDTO(kind: "values", label: label, display: "\(label): \(parts.joined(separator: ", "))")
+                return SidecarMetricLineDTO(kind: "values", label: label, display: "\(label): \(parts.joined(separator: ", "))", resetsAt: nil)
             case .chart(let label, let points, _):
-                return SidecarMetricLineDTO(kind: "chart", label: label, display: "\(label): \(points.count) days")
+                return SidecarMetricLineDTO(kind: "chart", label: label, display: "\(label): \(points.count) days", resetsAt: nil)
             }
         }
     }
