@@ -39,6 +39,18 @@ final class AntigravityQuotaSummaryTests: XCTestCase {
 
     // MARK: - Parser
 
+    func testPercentScaleRemainingFractionIsNormalized() {
+        let json = """
+        {"groups":[{"buckets":[
+          {"bucketId":"gemini-5h","remainingFraction":57},
+          {"bucketId":"3p-5h","remainingFraction":0.4}
+        ]}]}
+        """
+        let lines = AntigravityUsageMapper.parseQuotaSummary(Data(json.utf8))
+        XCTAssertEqual(lines?.map(\.label), ["Session", "Claude"])
+        XCTAssertEqual(lines?.map { used($0) }, [43, 60])
+    }
+
     func testWrappedAndBarePayloadsProduceIdenticalFourLines() {
         let bare = AntigravityUsageMapper.parseQuotaSummary(Data("{\(fullGroupsJSON)}".utf8))
         let wrapped = AntigravityUsageMapper.parseQuotaSummary(Data("{\"response\":{\(fullGroupsJSON)}}".utf8))
@@ -104,6 +116,46 @@ final class AntigravityQuotaSummaryTests: XCTestCase {
         let lines = AntigravityUsageMapper.parseQuotaSummary(Data(json.utf8))
         XCTAssertEqual(lines?.map(\.label), ["Session"])
         XCTAssertEqual(used(lines?.first), 25)
+    }
+
+    func testPerModelBucketIDsAggregateIntoMergedPools() {
+        let json = """
+        {"groups":[
+          {"displayName":"Gemini models","buckets":[
+            {"bucketId":"gemini-3.5-flash-low","window":"5h","remainingFraction":0.8,"resetTime":"2026-07-02T16:00:00Z"},
+            {"bucketId":"gemini-3.1-pro-low","window":"5h","remainingFraction":0.5,"resetTime":"2026-07-02T16:00:00Z"},
+            {"bucketId":"gemini-3.5-flash-low","window":"weekly","remainingFraction":0.9,"resetTime":"2026-07-06T07:00:00Z"}
+          ]},
+          {"displayName":"Other models","buckets":[
+            {"bucketId":"claude-sonnet-4-6","window":"5h","remainingFraction":0.6},
+            {"bucketId":"gpt-oss-120b-medium","window":"weekly","remainingFraction":0.7}
+          ]}
+        ]}
+        """
+        let lines = AntigravityUsageMapper.parseQuotaSummary(Data(json.utf8))
+        XCTAssertEqual(lines?.map(\.label), ["Session", "Weekly", "Claude", "Claude Weekly"])
+        XCTAssertEqual(lines?.map { used($0) }, [50, 10, 40, 30])
+    }
+
+    func testUnmappedPerModelBucketsDefaultToSessionWindow() {
+        let json = """
+        {"groups":[{"buckets":[
+          {"bucketId":"gemini-3.5-flash-low","remainingFraction":0.8},
+          {"bucketId":"claude-sonnet-4-6","remainingFraction":0.6}
+        ]}]}
+        """
+        let lines = AntigravityUsageMapper.parseQuotaSummary(Data(json.utf8))
+        XCTAssertEqual(lines?.map(\.label), ["Session", "Claude"])
+        XCTAssertEqual(lines?.map { used($0) }, [20, 40])
+    }
+
+    func testUnmappedPerModelBucketsReturnNilForLegacyFallback() {
+        let json = """
+        {"groups":[{"buckets":[
+          {"bucketId":"unknown-widget","remainingFraction":0.8}
+        ]}]}
+        """
+        XCTAssertNil(AntigravityUsageMapper.parseQuotaSummary(Data(json.utf8)))
     }
 
     func testWeeklyOnlyAndSessionOnlyShapes() {
@@ -179,12 +231,16 @@ final class AntigravityQuotaSummaryTests: XCTestCase {
         let groupsJSON = fullGroupsJSON
         let routing = RoutingHTTPClient { request in
             let path = request.url.path
-            if path.contains("retrieveUserQuotaSummary") {
-                // The remote endpoint returns the payload bare (no "response" wrapper).
-                return HTTPResponse(statusCode: 200, headers: [:], body: Data("{\(groupsJSON)}".utf8))
-            }
             if path.contains("loadCodeAssist") {
-                return HTTPResponse(statusCode: 200, headers: [:], body: Data(#"{"paidTier":{"name":"Google AI Pro"}}"#.utf8))
+                return HTTPResponse(statusCode: 200, headers: [:], body: Data(#"{"paidTier":{"name":"Google AI Pro"},"cloudaicompanionProject":"projects/test-proj"}"#.utf8))
+            }
+            if path.contains("retrieveUserQuotaSummary") {
+                if let body = request.httpBody,
+                   let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                   json["project"] as? String == "projects/test-proj" {
+                    return HTTPResponse(statusCode: 200, headers: [:], body: Data("{\(groupsJSON)}".utf8))
+                }
+                return HTTPResponse(statusCode: 404, headers: [:], body: Data())
             }
             return HTTPResponse(statusCode: 404, headers: [:], body: Data())
         }
@@ -196,6 +252,11 @@ final class AntigravityQuotaSummaryTests: XCTestCase {
         XCTAssertEqual(snapshot.lines.map { used($0) }, [25, 10, 60, 0])
         XCTAssertFalse(routing.requests.contains { $0.url.path.contains("fetchAvailableModels") },
                        "a parsed summary must not touch the legacy model endpoints")
+        let loadIndex = routing.requests.firstIndex { $0.url.path.contains("loadCodeAssist") }
+        let summaryIndex = routing.requests.firstIndex { $0.url.path.contains("retrieveUserQuotaSummary") }
+        XCTAssertNotNil(loadIndex)
+        XCTAssertNotNil(summaryIndex)
+        XCTAssertLessThan(loadIndex!, summaryIndex!)
     }
 
     @MainActor

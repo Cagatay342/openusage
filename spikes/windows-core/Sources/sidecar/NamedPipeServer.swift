@@ -64,18 +64,19 @@ enum SidecarPipeError: Error {
     case writeFailed
 }
 
-@MainActor
+/// Blocking named-pipe I/O runs off the MainActor so provider bootstrap and refresh can proceed
+/// while a shell client keeps its connection open waiting for the next request line.
 enum SidecarServer {
     static func run() async {
-        let service = SidecarService()
-        await service.bootstrap()
+        let service = await SidecarService()
+        Task { @MainActor in
+            await service.bootstrap()
+        }
 
         let wideName = NamedPipeTransport.pipeName()
         AppLog.info(.lifecycle, "sidecar pipe listening name=\(wideName) version=\(SidecarProtocol.version)")
         print("OpenUsage sidecar starting pipe=\(wideName) version=\(SidecarProtocol.version)")
 
-        // Sequential accept/handle: blocking ReadFile must not share @MainActor with a
-        // concurrent accept loop (that starved session handlers after the Widgets spike).
         while true {
             let pipe: PipeHandle
             do {
@@ -121,7 +122,6 @@ enum SidecarServer {
     }
 }
 
-@MainActor
 @main
 enum SidecarEntry {
     static func main() async {

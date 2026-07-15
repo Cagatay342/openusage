@@ -16,7 +16,7 @@ Flyout (tray or strip → provider cards with `% left`, spend, Refresh):
 
 | Area | Spike state |
 |---|---|
-| Core providers | Claude, Codex, Cursor, Grok, OpenRouter, Z.ai in `spikes/windows-core/` |
+| Core providers | Claude, Codex, Cursor, **Antigravity**, Grok, OpenRouter, Z.ai in `spikes/windows-core/` |
 | UI | Tray logo + **floating always-on-top strip** + dark flyout with progress bars |
 | Refresh | Manual + **every 5 minutes** (macOS cadence) |
 | System | Single instance, launch at login toggle, toasts, logging, sidecar supervision |
@@ -47,7 +47,7 @@ OpenUsage reads credentials already on your PC — same idea as macOS, with Wind
 | **OpenRouter** | Env `OPENROUTER_API_KEY`, or `%USERPROFILE%\.config\openusage\openrouter.json`, or `%USERPROFILE%\.config\openrouter\key.json`. |
 | **Z.ai** | Env `ZAI_API_KEY` / `Z_AI_API_KEY`, or `%USERPROFILE%\.config\openusage\zai.json`. |
 | **Copilot** (not in spike UI yet) | `%APPDATA%\GitHub CLI\hosts.yml`; Credential Manager `gh:github.com:<user>`. |
-| **Antigravity** (not in spike UI yet) | Credential Manager `gemini:antigravity`. |
+| **Antigravity** | Credential Manager `gemini:antigravity` (written by the Antigravity IDE or the **`agy` CLI** — there is no separate `agt` binary). Run `agy` once and sign in so a token exists. OpenUsage reads Cloud Code over HTTPS; local language-server discovery is macOS-only today. |
 | **Devin** (not in spike) | `%APPDATA%\Devin\...\state.vscdb` or `%USERPROFILE%\.local\share\devin\credentials.toml` when Devin is installed. |
 
 Third-party stores are **read-only** in the spike (no write-back to Cursor DB or Credential Manager). Details: [Phase 2 findings](research/windows-phase2-findings.md).
@@ -62,7 +62,7 @@ Third-party stores are **read-only** in the spike (no write-back to Cursor DB or
 | Full dashboard, settings, customize | Provider cards, refresh, launch-at-login; no Customize/Settings screens yet |
 | Local HTTP API `127.0.0.1:6736` | **Not implemented** on Windows yet |
 | Global shortcut | **Not implemented** |
-| All 9 providers in production app | 6 in core spike; Copilot/Devin/Antigravity not wired in shell |
+| All 9 providers in production app | 7 in core spike (incl. Antigravity); Copilot/Devin not wired in shell |
 | Notarized DMG | Unsigned zip |
 | Reset countdowns on meters | **Not on the wire yet** (`resetsAt` deferred) |
 
@@ -96,7 +96,7 @@ Logs: `%LOCALAPPDATA%\OpenUsage\logs\shell.log` (WPF) and `OpenUsage.log` (sidec
 
 ## Known limitations (spike)
 
-- Cold start often **~30–70 s** while the sidecar bootstraps live provider refreshes.
+- Cold start often **~30–70 s** while the sidecar bootstraps live provider refreshes in the background. The floating strip shows **Starting up…** until the first metrics arrive; the named pipe accepts connections immediately.
 - Refresh cadence is fixed at **5 minutes** (plus manual Refresh); no settings UI.
 - No auto-update install path; no Authenticode signing (SmartScreen warning).
 - Flyout is a simplified dashboard — not Customize / Settings / share cards.

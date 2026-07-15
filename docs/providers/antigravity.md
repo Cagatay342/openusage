@@ -1,6 +1,6 @@
 # Antigravity
 
-Tracks pool quotas for Antigravity (Google's AI IDE) using credentials the app or the `agy` CLI already stored on your Mac.
+Tracks pool quotas for Antigravity (Google's AI IDE) and the headless **`agy` CLI** using credentials the app or CLI already stored on your machine. (Google ships the binary as **`agy`**, not `agt`.)
 
 ## What it tracks
 
@@ -22,8 +22,9 @@ While a pool's rolling 5-hour window has no usage yet, that meter reads **Not st
 
 OpenUsage never asks for a token — it reads what Antigravity already has:
 
-- **Antigravity running** — OpenUsage talks to the app's local language server (the richest source, and where the plan name comes from).
-- **App closed** — it falls back to the OAuth token Antigravity / `agy` store in your macOS Keychain and queries Google's Cloud Code API. An expired token is refreshed automatically (OpenUsage never writes back to Antigravity's own keychain item).
+- **macOS — Antigravity running** — OpenUsage talks to the app's local language server (the richest source, and where the plan name comes from).
+- **macOS — App closed** — it falls back to the OAuth token Antigravity / `agy` store in your macOS Keychain and queries Google's Cloud Code API. An expired token is refreshed automatically (OpenUsage never writes back to Antigravity's own keychain item).
+- **Windows (experimental spike)** — Credential Manager entry `gemini:antigravity`, written when you sign in to the Antigravity IDE or run **`agy`** locally. OpenUsage reads that token and calls Cloud Code over HTTPS. Install `agy` from [google-antigravity/antigravity-cli](https://github.com/google-antigravity/antigravity-cli); the Windows installer puts it at `%LOCALAPPDATA%\agy\bin\agy.exe`. No extra environment variables are required — just run `agy` once and complete the browser sign-in.
 
 If neither is available you'll see *Start Antigravity or run `agy` and try again.*
 
@@ -37,6 +38,6 @@ If neither is available you'll see *Start Antigravity or run `agy` and try again
 
 ## Under the hood
 
-Best source first: the local language server discovered by scanning for the `language_server` / `agy` process and reading its CSRF token and listening ports; then Google Cloud Code using the Keychain token, refreshed via Google OAuth when needed. On each source OpenUsage asks the quota-summary endpoint first (`RetrieveUserQuotaSummary` on the language server, `v1internal:retrieveUserQuotaSummary` on Cloud Code) — the only endpoint that reports the merged pools and the weekly windows. Builds without it fall back to the legacy per-model endpoints (`GetUserStatus` / `GetCommandModelConfigs` locally, `fetchAvailableModels` / `retrieveUserQuota` remotely), whose per-model quotas are merged into the two pools by keeping each pool's worst remaining fraction; those endpoints only know the 5-hour windows. The plan name prefers Antigravity's own `userTier` over the inherited Windsurf plan field.
+Best source first: the local language server discovered by scanning for the `language_server` / `agy` process and reading its CSRF token and listening ports; then Google Cloud Code using the Keychain token, refreshed via Google OAuth when needed. On each source OpenUsage asks the quota-summary endpoint first (`RetrieveUserQuotaSummary` on the language server, `v1internal:retrieveUserQuotaSummary` on Cloud Code) — the only endpoint that reports the merged pools and the weekly windows. Newer builds may return per-model bucket IDs (e.g. `gemini-3.5-flash-low`, `claude-sonnet-4-6`) instead of the older merged keys (`gemini-5h`, `3p-weekly`); OpenUsage rolls those into the same four Session / Weekly / Claude meters. Builds without it fall back to the legacy per-model endpoints (`GetUserStatus` / `GetCommandModelConfigs` locally, `fetchAvailableModels` / `retrieveUserQuota` remotely), whose per-model quotas are merged into the two pools by keeping each pool's worst remaining fraction; those endpoints only know the 5-hour windows. The plan name prefers Antigravity's own `userTier` over the inherited Windsurf plan field.
 
 > Reverse-engineered from the app and language-server binary; endpoints and storage may change without notice.

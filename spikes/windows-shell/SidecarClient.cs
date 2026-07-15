@@ -86,6 +86,8 @@ public sealed class SidecarClient : IDisposable
 
     public static string PipeName => $"OpenUsageCore-{Environment.UserName}";
 
+    public bool IsConnected => _pipe?.IsConnected == true;
+
     public void Connect(int timeoutMs = 30_000)
     {
         Disconnect();

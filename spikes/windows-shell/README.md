@@ -16,7 +16,23 @@ Research notes: `docs/windows.md`, `docs/research/windows-phase6-findings.md`.
 
 - .NET 8 SDK (`winget install Microsoft.DotNet.SDK.8`)
 - Swift 6.3+ Windows toolchain with VS Build Tools (`docs/research/windows-toolchain.md`)
-- Provider credentials on the machine (Claude/Codex/Cursor for live data)
+- Provider credentials on the machine (Claude/Codex/Cursor/Antigravity for live data)
+
+### Antigravity (`agy` CLI)
+
+Google's CLI binary is **`agy`** (not `agt`). After install it lives at `%LOCALAPPDATA%\agy\bin\agy.exe`. Sign in once:
+
+```powershell
+agy
+```
+
+OpenUsage reads the resulting Credential Manager entry `gemini:antigravity`. Verify with:
+
+```powershell
+cmdkey /list | Select-String gemini
+```
+
+No `AGY_*` environment variables are required for the default single-account setup.
 
 ## One-command dev loop
 

@@ -24,6 +24,10 @@ public partial class FloatingStripWindow : Window
     private readonly DispatcherTimer _singleClickTimer;
     private readonly WpfFontFamily _mono = new("Cascadia Mono, Consolas, Segoe UI");
 
+    private const double SingleValueFontSize = 12;
+    private const double DualValueFontSize = 11;
+    private const double GlyphSize = 16;
+
     public FloatingStripWindow()
     {
         InitializeComponent();
@@ -40,8 +44,13 @@ public partial class FloatingStripWindow : Window
             _singleClickTimer.Stop();
             OpenFlyoutRequested?.Invoke();
         };
-        Body.Content = BuildHint("Connecting…");
-        ApplyExplicitSize(EstimateHintSize("Connecting…"));
+        ShowHint("Connecting…");
+    }
+
+    public void ShowHint(string text)
+    {
+        Body.Content = BuildHint(text);
+        ApplyExplicitSize(EstimateHintSize(text));
     }
 
     public void ApplyPosition(double? left, double? top)
@@ -80,8 +89,7 @@ public partial class FloatingStripWindow : Window
 
         if (segments.Count == 0)
         {
-            Body.Content = BuildHint("Connecting…");
-            ApplyExplicitSize(EstimateHintSize("Connecting…"));
+            ShowHint("Starting up…");
         }
         else
         {
@@ -137,20 +145,19 @@ public partial class FloatingStripWindow : Window
                 width += 11;
             }
 
-            width += 16 + 4; // glyph + gap
+            width += GlyphSize + 4; // glyph + gap
             var values = segments[i].Values;
             if (values.Count <= 1)
             {
                 var text = values.FirstOrDefault() ?? "—";
-                width += MeasureText(text, 12, FontWeights.Bold);
-                height = Math.Max(height, 14);
+                width += MeasureText(text, SingleValueFontSize, FontWeights.Bold);
+                height = Math.Max(height, 15);
             }
             else
             {
-                var top = MeasureText(values[0], 9, FontWeights.SemiBold);
-                var bottom = MeasureText(values[1], 9, FontWeights.SemiBold);
-                width += Math.Max(top, bottom);
-                height = Math.Max(height, 16);
+                var combined = FormatDualValues(values);
+                width += MeasureText(combined, DualValueFontSize, FontWeights.Bold);
+                height = Math.Max(height, 15);
             }
         }
 
@@ -194,7 +201,7 @@ public partial class FloatingStripWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        row.Children.Add(ProviderGlyph.Create(segment.ProviderId, side: 16));
+        row.Children.Add(ProviderGlyph.Create(segment.ProviderId, side: GlyphSize));
         row.Children.Add(new Border { Width = 4 });
 
         var metrics = new StackPanel
@@ -209,10 +216,10 @@ public partial class FloatingStripWindow : Window
             {
                 Text = segment.Values.FirstOrDefault() ?? "—",
                 FontFamily = _mono,
-                FontSize = 12,
+                FontSize = SingleValueFontSize,
                 FontWeight = FontWeights.Bold,
                 Foreground = WpfBrushes.White,
-                LineHeight = 14,
+                LineHeight = 15,
                 VerticalAlignment = VerticalAlignment.Center
             };
             TextOptions.SetTextFormattingMode(single, TextFormattingMode.Display);
@@ -220,27 +227,27 @@ public partial class FloatingStripWindow : Window
         }
         else
         {
-            for (var i = 0; i < segment.Values.Count; i++)
+            var dual = new TextBlock
             {
-                var line = new TextBlock
-                {
-                    Text = segment.Values[i],
-                    FontFamily = _mono,
-                    FontSize = 9,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = WpfBrushes.White,
-                    LineHeight = 9,
-                    Margin = i == 0 ? new Thickness(0, 0, 0, -2) : new Thickness(0),
-                    HorizontalAlignment = WpfHorizontalAlignment.Right
-                };
-                TextOptions.SetTextFormattingMode(line, TextFormattingMode.Display);
-                metrics.Children.Add(line);
-            }
+                Text = FormatDualValues(segment.Values),
+                FontFamily = _mono,
+                FontSize = DualValueFontSize,
+                FontWeight = FontWeights.Bold,
+                Foreground = WpfBrushes.White,
+                LineHeight = 15,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            TextOptions.SetTextFormattingMode(dual, TextFormattingMode.Display);
+            metrics.Children.Add(dual);
         }
 
         row.Children.Add(metrics);
         return row;
     }
+
+    /// <summary>Session + weekly on one line — easier to read than 9pt stacked rows.</summary>
+    private static string FormatDualValues(IReadOnlyList<string> values) =>
+        string.Join(" · ", values.Take(2));
 
     private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

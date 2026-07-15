@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -101,6 +102,7 @@ internal sealed class TrayController : IDisposable
     private readonly WinForms.NotifyIcon _notifyIcon;
     private readonly SidecarSupervisor _supervisor = new();
     private readonly SidecarClient _client = new();
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly ShellSettings _settings;
     private readonly FloatingStripWindow _strip;
     private FlyoutWindow? _flyout;
@@ -171,7 +173,7 @@ internal sealed class TrayController : IDisposable
         {
             _strip.ApplyPosition(_settings.StripLeft, _settings.StripTop);
         }, System.Windows.Threading.DispatcherPriority.Loaded);
-        _strip.Update([]);
+        _strip.ShowHint("Connecting…");
         _ = InitializeAsync();
         _ = CheckForUpdatesAsync();
     }
@@ -384,10 +386,59 @@ internal sealed class TrayController : IDisposable
     private async Task InitializeAsync()
     {
         await EnsureConnectedAsync();
+        await WaitForSidecarBootstrapAsync();
         await RefreshFlyoutAsync();
         // First live numbers are on screen — keep them fresh on the same 5-minute cadence as macOS.
         _periodicRefreshTimer.Start();
         ShellLogger.Instance.Info("refresh", $"Periodic refresh every {PeriodicRefreshInterval.TotalMinutes:0}m");
+    }
+
+    /// <summary>
+    /// Sidecar bootstraps credentials and live refreshes in the background after the pipe opens.
+    /// Poll snapshots until at least one provider reports credentials or we time out (~3 min).
+    /// </summary>
+    private async Task WaitForSidecarBootstrapAsync()
+    {
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            if (!_client.IsConnected)
+            {
+                await EnsureConnectedAsync().ConfigureAwait(true);
+            }
+
+            try
+            {
+                var response = await Task.Run(() => _client.Send(new SidecarRequest { Op = "snapshot" }))
+                    .ConfigureAwait(true);
+                var providers = response.Providers ?? [];
+                _lastProviders = providers;
+                ApplyTraySummary(providers);
+                _flyout?.SetProviders(providers);
+
+                var ready = providers.Any(p =>
+                    p.CredentialsFound && p.Status is "ok" or "error" && p.MetricLines.Count > 0);
+                if (ready || StripContentBuilder.Build(providers).Count > 0)
+                {
+                    ShellLogger.Instance.Info("sidecar", $"Bootstrap ready after {attempt + 1} snapshot(s)");
+                    return;
+                }
+
+                if (providers.Any(p => p.CredentialsFound))
+                {
+                    ShellLogger.Instance.Info("sidecar", $"Bootstrap in progress (attempt {attempt + 1})");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShellLogger.Instance.Warn("sidecar", $"Bootstrap poll failed: {ex.Message}");
+                _client.Disconnect();
+            }
+
+            _strip.ShowHint("Starting up…");
+            await Task.Delay(3_000).ConfigureAwait(true);
+        }
+
+        ShellLogger.Instance.Warn("sidecar", "Bootstrap poll timed out; continuing with empty snapshot");
     }
 
     private async Task RefreshAllAsync()
@@ -514,43 +565,64 @@ internal sealed class TrayController : IDisposable
 
     private async Task EnsureConnectedAsync()
     {
-        if (!_supervisor.EnsureRunning())
+        if (_client.IsConnected)
         {
-            _flyout?.SetError(_supervisor.LastError ?? "Sidecar unavailable");
-            await Task.Delay(500);
+            return;
         }
 
-        // Sidecar only opens the pipe after the first provider refresh (~30–70s cold start).
-        // Run Connect off the UI thread and keep retrying long enough to cover that window.
-        for (var attempt = 0; attempt < 40; attempt++)
+        await _connectGate.WaitAsync().ConfigureAwait(true);
+        try
         {
-            try
+            if (_client.IsConnected)
             {
-                await Task.Run(() => _client.Connect(timeoutMs: 2_000)).ConfigureAwait(true);
-                var pong = await Task.Run(() => _client.Send(new SidecarRequest { Op = "ping" }))
-                    .ConfigureAwait(true);
-                if (pong.Op == "pong")
-                {
-                    _reconnectTimer.Stop();
-                    ShellLogger.Instance.Info("sidecar", "Connected to pipe");
-                    return;
-                }
+                return;
             }
-            catch (Exception ex)
-            {
-                _client.Disconnect();
-                if (attempt == 0 || attempt % 5 == 4)
-                {
-                    ShellLogger.Instance.Warn("sidecar", $"Connect attempt {attempt + 1}: {ex.Message}");
-                }
 
-                await Task.Delay(1_000).ConfigureAwait(true);
+            if (!_supervisor.EnsureRunning())
+            {
+                _flyout?.SetError(_supervisor.LastError ?? "Sidecar unavailable");
+                _strip.ShowHint("Sidecar unavailable");
+                await Task.Delay(500).ConfigureAwait(true);
+                return;
             }
+
+            _strip.ShowHint("Starting up…");
+
+            // Sidecar may still be bootstrapping live provider refreshes in the background.
+            for (var attempt = 0; attempt < 90; attempt++)
+            {
+                try
+                {
+                    await Task.Run(() => _client.Connect(timeoutMs: 3_000)).ConfigureAwait(true);
+                    var pong = await Task.Run(() => _client.Send(new SidecarRequest { Op = "ping" }))
+                        .ConfigureAwait(true);
+                    if (pong.Op == "pong")
+                    {
+                        _reconnectTimer.Stop();
+                        ShellLogger.Instance.Info("sidecar", "Connected to pipe");
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _client.Disconnect();
+                    if (attempt == 0 || attempt % 10 == 9)
+                    {
+                        ShellLogger.Instance.Warn("sidecar", $"Connect attempt {attempt + 1}: {ex.Message}");
+                    }
+
+                    await Task.Delay(1_000).ConfigureAwait(true);
+                }
+            }
+
+            _reconnectTimer.Start();
+            _flyout?.SetError(_supervisor.LastError ?? "Could not connect to sidecar pipe");
+            _strip.ShowHint("Connecting…");
         }
-
-        _reconnectTimer.Start();
-        _flyout?.SetError(_supervisor.LastError ?? "Could not connect to sidecar pipe");
-        _strip.Update([]);
+        finally
+        {
+            _connectGate.Release();
+        }
     }
 
     private void EnsureLaunchAtLoginEnabled()
@@ -607,6 +679,7 @@ internal sealed class TrayController : IDisposable
         _resetCountdownTimer.Stop();
         _reconnectTimer.Stop();
         _client.Dispose();
+        _connectGate.Dispose();
         _supervisor.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
