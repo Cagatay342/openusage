@@ -112,6 +112,7 @@ internal sealed class TrayController : IDisposable
     private readonly DispatcherTimer _reconnectTimer;
     private readonly DispatcherTimer _periodicRefreshTimer;
     private readonly DispatcherTimer _resetCountdownTimer;
+    private readonly LocalUsageHttpServer _localApi;
     private IReadOnlyList<SidecarProvider> _lastProviders = [];
     private bool _refreshInFlight;
 
@@ -156,6 +157,8 @@ internal sealed class TrayController : IDisposable
         _resetCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _resetCountdownTimer.Tick += (_, _) => RefreshResetCountdowns();
 
+        _localApi = new LocalUsageHttpServer(() => _lastProviders);
+
         _supervisor.SidecarExited += () =>
         {
             WpfApplication.Current.Dispatcher.BeginInvoke(() => _client.Disconnect());
@@ -174,6 +177,7 @@ internal sealed class TrayController : IDisposable
             _strip.ApplyPosition(_settings.StripLeft, _settings.StripTop);
         }, System.Windows.Threading.DispatcherPriority.Loaded);
         _strip.ShowHint("Connecting…");
+        _localApi.Start();
         _ = InitializeAsync();
         _ = CheckForUpdatesAsync();
     }
@@ -678,6 +682,7 @@ internal sealed class TrayController : IDisposable
         _periodicRefreshTimer.Stop();
         _resetCountdownTimer.Stop();
         _reconnectTimer.Stop();
+        _localApi.Dispose();
         _client.Dispose();
         _connectGate.Dispose();
         _supervisor.Dispose();

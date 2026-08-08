@@ -16,14 +16,18 @@ Tracks your [OpenRouter](https://openrouter.ai) credit balance and spend from yo
 
 ## Where credentials come from
 
-Unlike the other providers, OpenRouter has no companion app or CLI that leaves a credential on your
-machine, so you supply an API key. Create one at [openrouter.ai/keys](https://openrouter.ai/keys),
+OpenRouter has no desktop app that leaves a session on your machine, but if you use
+[Aider](https://aider.chat) its OpenRouter sign-in writes a key to `~/.aider/oauth-keys.env` — OpenUsage
+reads that automatically, along with Aider's `~/.env` and `~/.aider.conf.yml` when they hold an
+OpenRouter key.
+
+You can also supply a key yourself. Create one at [openrouter.ai/keys](https://openrouter.ai/keys),
 then add it in **Settings → API Keys** (recommended): expand OpenRouter, paste the key, and Save.
 The key is stored at `~/.config/openusage/openrouter.json` and picked up on the next refresh.
 
-You can also provide the key directly (checked in this order, first match wins):
+Sources are checked in this order (first match wins):
 
-1. **Config file:** `~/.config/openusage/openrouter.json` — the file the Settings card writes:
+1. **OpenUsage config file:** `~/.config/openusage/openrouter.json` — the file the Settings card writes:
 
    ```json
    { "apiKey": "sk-or-v1-..." }
@@ -31,14 +35,17 @@ You can also provide the key directly (checked in this order, first match wins):
 
    A plain-text file containing just the key, or `~/.config/openrouter/key.json`, also work.
 
-2. **Environment variable:** set `OPENROUTER_API_KEY` in your shell profile (e.g. `~/.zshrc` or
+2. **Aider:** `~/.aider/oauth-keys.env` (written by Aider's OpenRouter OAuth sign-in), then `~/.env`,
+   then `~/.aider.conf.yml` (`api-key: - openrouter=…`).
+
+3. **Environment variable:** set `OPENROUTER_API_KEY` in your shell profile (e.g. `~/.zshrc` or
    `~/.zprofile`). On launch the app reads your login shell's environment, so a key exported there is
    picked up even when the app is started from Finder or the Dock — not just when run from a terminal.
-   When a key is found here, the API Keys card shows it as read-only ("From environment") with a
-   checkbox to override it with a saved key.
+   When a key is found here (or in an Aider file), the API Keys card shows it as read-only ("From
+   environment") with a checkbox to override it with a saved key.
 
-A key saved through the app overrides an environment key (the config file is checked first); removing
-the saved key falls back to the environment key, or to none.
+A key saved through the app overrides any other source (the OpenUsage config file is checked first);
+removing the saved key falls back to Aider or the environment key, or to none.
 
 ## Troubleshooting
 

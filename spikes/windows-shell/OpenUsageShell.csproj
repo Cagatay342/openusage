@@ -27,5 +27,6 @@
     <None Include="Assets\Providers\**\*.svg">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <EmbeddedResource Include="Assets\usage-dashboard.html" />
   </ItemGroup>
 </Project>

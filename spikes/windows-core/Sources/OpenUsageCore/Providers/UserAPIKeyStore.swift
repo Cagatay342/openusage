@@ -14,23 +14,46 @@ struct UserAPIKeyStore: Sendable {
     enum Failure { case missingKey, saveFailed, deleteFailed }
 
     let configPaths: [String]
+    /// Companion-tool files (e.g. Aider's `~/.aider/oauth-keys.env`) checked after explicit OpenUsage
+    /// config paths but before live environment variables.
+    let companionConfigPaths: [String]
+    /// When set, YAML companion paths are parsed for `api-key: <provider>=…` entries (Aider's format).
+    let companionYAMLProvider: String?
     let environmentNames: [String]
     var files: TextFileAccessing
     var environment: EnvironmentReading
     let makeError: @Sendable (Failure) -> Error
 
-    /// Config file first, environment second: the config file is the path a user edits to rotate or
-    /// replace the key, so it wins over a stale env value an old `launchctl setenv` may have left behind.
+    init(
+        configPaths: [String],
+        environmentNames: [String],
+        files: TextFileAccessing,
+        environment: EnvironmentReading,
+        makeError: @escaping @Sendable (Failure) -> Error,
+        companionConfigPaths: [String] = [],
+        companionYAMLProvider: String? = nil
+    ) {
+        self.configPaths = configPaths
+        self.companionConfigPaths = companionConfigPaths
+        self.companionYAMLProvider = companionYAMLProvider
+        self.environmentNames = environmentNames
+        self.files = files
+        self.environment = environment
+        self.makeError = makeError
+    }
+
+    /// Config file first, companion-tool files second, environment third: the OpenUsage config file is
+    /// the path a user edits to rotate or replace the key, so it wins over stale companion/env values.
     func loadKey() -> String? {
-        keyFromConfigFile() ?? keyFromEnvironment()
+        keyFromConfigFile() ?? keyFromCompanionConfig() ?? keyFromEnvironment()
     }
 
     /// Which combination of sources currently holds a key — drives the four-state API Keys card. A saved
-    /// key plus an env key is `overrideActive` because config wins, so the saved one overrides.
+    /// key plus any external key (companion file or env) is `overrideActive` because config wins.
     func keyStatus() -> APIKeyStatus {
         let hasConfig = keyFromConfigFile() != nil
-        let hasEnv = keyFromEnvironment() != nil
-        switch (hasConfig, hasEnv) {
+        let hasExternal = keyFromCompanionConfig() != nil || keyFromEnvironment() != nil
+        switch (hasConfig, hasExternal) {
         case (true, true): return .overrideActive
         case (true, false): return .saved
         case (false, true): return .fromEnvironment
@@ -82,6 +105,22 @@ struct UserAPIKeyStore: Sendable {
             guard files.exists(path), let text = try? files.readText(path) else { continue }
             if let key = Self.keyFromConfigText(text) {
                 return key
+            }
+        }
+        return nil
+    }
+
+    private func keyFromCompanionConfig() -> String? {
+        for path in companionConfigPaths {
+            guard files.exists(path), let text = try? files.readText(path) else { continue }
+            if path.hasSuffix(".yml") || path.hasSuffix(".yaml"), let provider = companionYAMLProvider,
+               let key = AiderConfig.apiKey(for: provider, in: text) {
+                return key
+            }
+            for name in environmentNames {
+                if let key = DotEnv.value(named: name, in: text) {
+                    return key
+                }
             }
         }
         return nil

@@ -44,7 +44,7 @@ OpenUsage reads credentials already on your PC — same idea as macOS, with Wind
 | **Codex** | `%USERPROFILE%\.codex\auth.json` (respects `CODEX_HOME` if set). |
 | **Cursor** | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (SQLite; live read-only open while Cursor runs). **Note:** Swift `FileManager.applicationSupport` does not match this path — the spike uses `%APPDATA%` explicitly. |
 | **Grok** | `%USERPROFILE%\.grok\auth.json` and `%USERPROFILE%\.grok\logs\unified.jsonl`. |
-| **OpenRouter** | Env `OPENROUTER_API_KEY`, or `%USERPROFILE%\.config\openusage\openrouter.json`, or `%USERPROFILE%\.config\openrouter\key.json`. |
+| **OpenRouter** | Aider `%USERPROFILE%\.aider\oauth-keys.env` / `%USERPROFILE%\.env` / `%USERPROFILE%\.aider.conf.yml`, env `OPENROUTER_API_KEY`, or `%USERPROFILE%\.config\openusage\openrouter.json`, or `%USERPROFILE%\.config\openrouter\key.json`. |
 | **Z.ai** | Env `ZAI_API_KEY` / `Z_AI_API_KEY`, or `%USERPROFILE%\.config\openusage\zai.json`. |
 | **Copilot** (not in spike UI yet) | `%APPDATA%\GitHub CLI\hosts.yml`; Credential Manager `gh:github.com:<user>`. |
 | **Antigravity** | Credential Manager `gemini:antigravity` (written by the Antigravity IDE or the **`agy` CLI** — there is no separate `agt` binary). Run `agy` once and sign in so a token exists. OpenUsage reads Cloud Code over HTTPS; local language-server discovery is macOS-only today. |

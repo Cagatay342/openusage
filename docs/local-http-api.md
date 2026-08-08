@@ -2,11 +2,21 @@
 
 OpenUsage exposes a read-only HTTP API on the loopback interface so other local apps can consume the same usage data shown in the menu bar.
 
-**Base URL:** `http://127.0.0.1:6736`
+**Base URL:** `http://127.0.0.1:6736` (same machine) or `http://<your-lan-ip>:6736` from phones/tablets on your Wi‑Fi.
+
+The server binds to localhost and every active IPv4 address on your machine. On Windows the shell also tries to add a firewall rule for TCP 6736.
 
 The server starts automatically with the app. If the port is already in use, the feature is silently disabled for that session.
 
 ## Routes
+
+### `GET /` or `GET /dashboard`
+
+Serves a built-in web dashboard that shows the same usage data as the menu bar, in a card layout with
+progress bars. The page auto-refreshes every 30 seconds and updates the browser tab title with a compact
+summary of your top metrics.
+
+Open **http://127.0.0.1:6736/** on this PC, or **http://&lt;your-lan-ip&gt;:6736/** from another device on the same network (e.g. `http://192.168.1.108:6736/`).
 
 ### `GET /v1/usage`
 
@@ -89,7 +99,7 @@ Codes: `provider_not_found`, `not_found`, `method_not_allowed`, `server_busy`.
 
 All responses include permissive CORS headers (`Access-Control-Allow-Origin: *`, methods `GET, OPTIONS`). `OPTIONS` requests return **204** for preflight.
 
-The server only listens on the loopback interface (`127.0.0.1`), so it is not reachable from other machines on your network. Because the CORS header is permissive, though, a web page open in your browser can read your usage snapshots from this API while the app is running. The data exposed is the same usage numbers shown in the menu bar — no credentials or tokens are ever served. This matches the original app's behavior so existing integrations keep working.
+The server listens on localhost and your machine's LAN IPv4 addresses. Anyone on the same network who can reach port 6736 can read your usage snapshots (the same numbers shown in the menu bar) — no credentials are served, but treat this like sharing your dashboard on Wi‑Fi. CORS is permissive (`Access-Control-Allow-Origin: *`) so a browser tab can call the API from any origin.
 
 ## Caching behavior
 

@@ -45,6 +45,51 @@ final class OpenRouterAuthStoreTests: XCTestCase {
         XCTAssertEqual(store.loadAPIKey()?.apiKey, "sk-or-plain")
     }
 
+    func testReadsKeyFromAiderOAuthEnvFile() {
+        let store = OpenRouterAuthStore(
+            files: FakeFiles(["~/.aider/oauth-keys.env": #"OPENROUTER_API_KEY="sk-or-aider""#]),
+            environment: FakeEnvironment()
+        )
+
+        XCTAssertEqual(store.loadAPIKey()?.apiKey, "sk-or-aider")
+        XCTAssertEqual(store.keyStatus(), .fromEnvironment)
+    }
+
+    func testReadsKeyFromAiderHomeDotEnv() {
+        let store = OpenRouterAuthStore(
+            files: FakeFiles(["~/.env": "export OPENROUTER_API_KEY=sk-or-dotenv\n"]),
+            environment: FakeEnvironment()
+        )
+
+        XCTAssertEqual(store.loadAPIKey()?.apiKey, "sk-or-dotenv")
+    }
+
+    func testReadsKeyFromAiderYAMLConfig() {
+        let yaml = """
+        api-key:
+          - openrouter=sk-or-yaml
+        """
+        let store = OpenRouterAuthStore(
+            files: FakeFiles(["~/.aider.conf.yml": yaml]),
+            environment: FakeEnvironment()
+        )
+
+        XCTAssertEqual(store.loadAPIKey()?.apiKey, "sk-or-yaml")
+    }
+
+    func testPrefersOpenUsageConfigOverAider() {
+        let store = OpenRouterAuthStore(
+            files: FakeFiles([
+                OpenRouterAuthStore.configPaths[0]: #"{"apiKey":"sk-or-saved"}"#,
+                "~/.aider/oauth-keys.env": #"OPENROUTER_API_KEY="sk-or-aider""#,
+            ]),
+            environment: FakeEnvironment()
+        )
+
+        XCTAssertEqual(store.loadAPIKey()?.apiKey, "sk-or-saved")
+        XCTAssertEqual(store.keyStatus(), .saved)
+    }
+
     func testReturnsNilWhenNoKeyAnywhere() {
         let store = OpenRouterAuthStore(files: FakeFiles(), environment: FakeEnvironment())
         XCTAssertNil(store.loadAPIKey())
