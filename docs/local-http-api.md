@@ -13,8 +13,8 @@ The server starts automatically with the app. If the port is already in use, the
 ### `GET /` or `GET /dashboard`
 
 Serves a built-in web dashboard that shows the same usage data as the menu bar, in a card layout with
-progress bars. The page auto-refreshes every 30 seconds and updates the browser tab title with a compact
-summary of your top metrics.
+progress bars and reset countdowns (from each line's optional `resetsAt`). The page auto-refreshes every
+30 seconds and updates the browser tab title with a compact summary of your top metrics.
 
 Open **http://127.0.0.1:6736/** on this PC, or **http://&lt;your-lan-ip&gt;:6736/** from another device on the same network (e.g. `http://192.168.1.108:6736/`).
 

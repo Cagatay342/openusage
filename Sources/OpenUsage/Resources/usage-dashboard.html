@@ -183,6 +183,14 @@
       font-weight: 600;
     }
 
+    .metric-reset {
+      margin-top: 5px;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
     .track {
       height: 9px;
       border-radius: 999px;
@@ -362,6 +370,36 @@
       return "currentColor";
     }
 
+    /** Xg Ysa / Xsa Ydk / Xdk — macOS Formatters.compactDuration ile aynı mantık. */
+    function compactDuration(seconds) {
+      if (!Number.isFinite(seconds) || seconds <= 0) return null;
+      const totalMinutes = Math.max(1, Math.ceil(seconds / 60));
+      const days = Math.floor(totalMinutes / (24 * 60));
+      const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+      const minutes = totalMinutes % 60;
+      if (days > 0) return `${days}g ${hours}sa`;
+      if (hours > 0) return minutes > 0 ? `${hours}sa ${minutes}dk` : `${hours}sa`;
+      return `${minutes}dk`;
+    }
+
+    /** API'deki ISO-8601 resetsAt → "2g 6sa sonra sıfırlanır" / "Yakında sıfırlanır". */
+    function formatResetLabel(resetsAtIso) {
+      if (!resetsAtIso) return null;
+      const resetsAt = new Date(resetsAtIso);
+      if (Number.isNaN(resetsAt.getTime())) return null;
+      const seconds = (resetsAt.getTime() - Date.now()) / 1000;
+      if (seconds <= 5 * 60) return "Yakında sıfırlanır";
+      const duration = compactDuration(seconds);
+      return duration ? `${duration} sonra sıfırlanır` : null;
+    }
+
+    function updateResetLabels() {
+      document.querySelectorAll("[data-resets-at]").forEach((el) => {
+        const label = formatResetLabel(el.dataset.resetsAt);
+        if (label) el.textContent = label;
+      });
+    }
+
     function providerLetter(id) {
       return PROVIDER_LETTER[id] || id.slice(0, 1).toUpperCase();
     }
@@ -462,6 +500,10 @@
         if (line.type === "progress") {
           const p = pct(line.used, line.limit);
           const barColor = severityColor(p);
+          const resetLabel = formatResetLabel(line.resetsAt);
+          const resetBlock = resetLabel
+            ? `<div class="metric-reset" data-resets-at="${escapeHtml(line.resetsAt)}">${escapeHtml(resetLabel)}</div>`
+            : "";
           return `
             <div class="metric progress">
               <div class="metric-label">
@@ -469,6 +511,7 @@
                 <span class="metric-value" style="color:${barColor}">${escapeHtml(formatProgress(line))}</span>
               </div>
               <div class="track"><div class="fill" style="width:${p}%; background: linear-gradient(90deg, ${color}99, ${color});"></div></div>
+              ${resetBlock}
             </div>`;
         }
         return `
@@ -548,6 +591,7 @@
 
     refresh();
     setInterval(refresh, REFRESH_MS);
+    setInterval(updateResetLabels, 30_000);
   </script>
 </body>
 </html>

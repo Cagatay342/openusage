@@ -83,7 +83,7 @@ See [PROTOCOL.md](./PROTOCOL.md).
 
 - Full dashboard / customize / settings screens
 - Local HTTP API on `127.0.0.1:6736` — **web dashboard at http://127.0.0.1:6736/** while the shell is running
-- Reset countdowns in the flyout (`resetsAt` not yet on the wire)
+- Reset countdowns in the flyout (`resetsAt` not yet on the wire); web dashboard shows them from `resetsAt`
 - Mica/Acrylic, share cards, global hotkey
 - `TaskbarCreated` tray re-registration
 - PostHog, minidump, Authenticode signing
