@@ -82,7 +82,7 @@ See [PROTOCOL.md](./PROTOCOL.md).
 ## Deferred (not in this spike)
 
 - Full dashboard / customize / settings screens
-- Local HTTP API on `127.0.0.1:6736`
+- Local HTTP API on `127.0.0.1:6736` — **web dashboard at http://127.0.0.1:6736/** while the shell is running
 - Reset countdowns in the flyout (`resetsAt` not yet on the wire)
 - Mica/Acrylic, share cards, global hotkey
 - `TaskbarCreated` tray re-registration

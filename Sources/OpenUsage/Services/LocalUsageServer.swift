@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-/// Loopback-only HTTP/1.1 listener for the read-only usage API on `127.0.0.1:6736`. Starts with
+/// HTTP/1.1 listener for the read-only usage API on port 6736 (loopback + local network). Starts with
 /// the app; when the port is already taken the feature is silently disabled for the session
 /// (matching the original app). At most 16 requests are served concurrently — beyond that a
 /// connection gets `503 {"error":"server_busy"}` immediately.
@@ -22,14 +22,11 @@ final class LocalUsageServer {
 
     func start() {
         let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = NWEndpoint.hostPort(
-            host: "127.0.0.1",
-            port: NWEndpoint.Port(rawValue: Self.port)!
-        )
+        let port = NWEndpoint.Port(rawValue: Self.port)!
 
         let listener: NWListener
         do {
-            listener = try NWListener(using: parameters)
+            listener = try NWListener(using: parameters, on: port)
         } catch {
             AppLog.info(.localAPI, "disabled: \(error.localizedDescription)")
             return
@@ -131,7 +128,7 @@ final class LocalUsageServer {
         head += "Access-Control-Allow-Headers: Content-Type\r\n"
         head += "Connection: close\r\n"
         if let body = response.body {
-            head += "Content-Type: application/json\r\n"
+            head += "Content-Type: \(response.contentType)\r\n"
             head += "Content-Length: \(body.count)\r\n\r\n"
             connection.send(content: Data(head.utf8) + body, completion: .contentProcessed { _ in
                 connection.cancel()

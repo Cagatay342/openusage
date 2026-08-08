@@ -17,6 +17,7 @@ enum LocalUsageAPI {
     struct Response: Equatable, Sendable {
         var status: Int
         var body: Data?
+        var contentType: String = "application/json"
     }
 
     static func respond(method: String, path: String, state: State) -> Response {
@@ -29,13 +30,19 @@ enum LocalUsageAPI {
             .split(separator: "/")
             .map(String.init)
 
-        switch (segments.count, segments.first, segments.dropFirst().first) {
-        case (2, "v1", "usage"):
+        switch segments.count {
+        case 0:
+            return dashboard(method: method)
+
+        case 1 where segments[0] == "dashboard":
+            return dashboard(method: method)
+
+        case 2 where segments[0] == "v1" && segments[1] == "usage":
             guard method == "GET" else { return error(405, "method_not_allowed") }
             let snapshots = state.enabledOrderedIDs.compactMap { state.snapshots[$0] }
             return Response(status: 200, body: encode(snapshots.map(WireSnapshot.init)))
 
-        case (3, "v1", "usage"):
+        case 3 where segments[0] == "v1" && segments[1] == "usage":
             guard method == "GET" else { return error(405, "method_not_allowed") }
             let providerID = segments[2]
             guard state.knownIDs.contains(providerID) else { return error(404, "provider_not_found") }
@@ -45,6 +52,12 @@ enum LocalUsageAPI {
         default:
             return error(404, "not_found")
         }
+    }
+
+    private static func dashboard(method: String) -> Response {
+        guard method == "GET" else { return error(405, "method_not_allowed") }
+        guard let html = LocalUsageDashboard.html else { return error(404, "not_found") }
+        return Response(status: 200, body: html, contentType: "text/html; charset=utf-8")
     }
 
     static let busy = error(503, "server_busy")

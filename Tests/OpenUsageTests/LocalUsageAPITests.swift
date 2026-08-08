@@ -106,6 +106,20 @@ final class LocalUsageAPITests: XCTestCase {
         XCTAssertEqual(unknownRoute.status, 404)
         XCTAssertEqual((try json(unknownRoute.body) as? [String: Any])?["error"] as? String, "not_found")
     }
+
+    func testDashboardServedAtRootAndAlias() throws {
+        for path in ["/", "/dashboard"] {
+            let response = LocalUsageAPI.respond(method: "GET", path: path, state: makeState())
+            XCTAssertEqual(response.status, 200, path)
+            XCTAssertEqual(response.contentType, "text/html; charset=utf-8", path)
+            let html = try XCTUnwrap(String(data: XCTUnwrap(response.body), encoding: .utf8))
+            XCTAssertTrue(html.contains("OpenUsage Live"), path)
+            XCTAssertTrue(html.contains("/v1/usage"), path)
+        }
+
+        let post = LocalUsageAPI.respond(method: "POST", path: "/", state: makeState())
+        XCTAssertEqual(post.status, 405)
+    }
 }
 
 final class LocalUsageServerRequestLineTests: XCTestCase {

@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>OpenUsage — bağlanıyor…</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-elevated: rgba(22, 26, 36, 0.72);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f4f6fb;
+      --text-muted: #9aa3b5;
+      --accent: #6467f2;
+      --ok: #34c759;
+      --warn: #ff9f0a;
+      --danger: #ff453a;
+      --radius: 18px;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      --font: "SF Pro Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(100, 103, 242, 0.22), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(222, 115, 86, 0.16), transparent 50%),
+        radial-gradient(700px 400px at 50% 100%, rgba(16, 163, 127, 0.12), transparent 55%),
+        var(--bg);
+      padding: 28px 20px 48px;
+    }
+
+    .shell { max-width: 1280px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px 24px;
+      margin-bottom: 28px;
+    }
+
+    .brand h1 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .brand p {
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 52ch;
+      line-height: 1.45;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(12px);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 12px var(--warn);
+      flex-shrink: 0;
+    }
+
+    .dot.live { background: var(--ok); box-shadow: 0 0 12px var(--ok); }
+    .dot.error { background: var(--danger); box-shadow: 0 0 12px var(--danger); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: rise 0.45s ease both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .provider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      color: #fff;
+      flex-shrink: 0;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+
+    .provider h2 {
+      font-size: 1.05rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .provider small {
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      margin-top: 2px;
+    }
+
+    .plan {
+      font-size: 0.72rem;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .metrics { padding: 8px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+    .metric-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+    }
+
+    .metric-value {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+
+    .track {
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.07);
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      border-radius: inherit;
+      width: 0%;
+      transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+      background: linear-gradient(90deg, rgba(255,255,255,0.15), rgba(255,255,255,0.35));
+    }
+
+    .text-metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .text-metric .value {
+      font-weight: 650;
+      font-size: 0.92rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .badge {
+      font-size: 0.78rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .empty, .error-panel {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 56px 24px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .error-panel strong { color: var(--text); display: block; margin-bottom: 8px; font-size: 1.1rem; }
+    .error-panel code {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.35);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: #d6e4ff;
+    }
+
+    footer {
+      margin-top: 28px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 18px 14px 36px; }
+      .card-head { padding: 16px; }
+      .metrics { padding: 8px 16px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <h1>OpenUsage Live</h1>
+        <p>Kullanım kartları — otomatik yenilenir.</p>
+      </div>
+      <div class="status-bar" id="status">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Bağlanıyor…</span>
+      </div>
+    </header>
+
+    <main class="grid" id="grid">
+      <div class="empty">Veriler yükleniyor…</div>
+    </main>
+
+    <footer>
+      API <code>/v1/usage</code> · yenileme <span id="refresh-sec">30</span>s
+    </footer>
+  </div>
+
+  <script>
+    const API_URL = "/v1/usage";
+    const REFRESH_MS = 30_000;
+
+    const COLORS = {
+      claude: "#DE7356",
+      codex: "#10A37F",
+      cursor: "#8E8E93",
+      grok: "#98989D",
+      openrouter: "#6467F2",
+      antigravity: "#4285F4",
+      copilot: "#A855F7",
+      zai: "#7C7C80",
+      devin: "#F97316",
+      amp: "#F34E3F",
+      factory: "#8E8E93",
+      kimi: "#0A66FF",
+      minimax: "#F5433C",
+    };
+
+    /** Single-letter provider codes for the tab title (max density). */
+    const PROVIDER_LETTER = {
+      claude: "C",
+      codex: "X",
+      cursor: "R",
+      grok: "G",
+      openrouter: "O",
+      antigravity: "A",
+      copilot: "P",
+      zai: "Z",
+      devin: "D",
+      kimi: "K",
+      minimax: "M",
+      amp: "p",
+      factory: "F",
+    };
+
+    const grid = document.getElementById("grid");
+    const statusDot = document.getElementById("status-dot");
+    const statusText = document.getElementById("status-text");
+    const refreshSec = document.getElementById("refresh-sec");
+
+    refreshSec.textContent = String(REFRESH_MS / 1000);
+
+    function initials(name) {
+      return name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+    }
+
+    function providerColor(id) {
+      return COLORS[id] || "#6467F2";
+    }
+
+    function pct(used, limit) {
+      if (!limit || limit <= 0) return 0;
+      return Math.min(100, Math.max(0, (used / limit) * 100));
+    }
+
+    function formatProgress(line) {
+      const kind = line.format?.kind;
+      if (kind === "percent") return `${Math.round(line.used)}%`;
+      if (kind === "dollars") return `$${line.used.toFixed(2)} / $${line.limit.toFixed(2)}`;
+      if (kind === "count") {
+        const suffix = line.format?.suffix || "";
+        return `${line.used}${suffix} / ${line.limit}${suffix}`;
+      }
+      return `${line.used} / ${line.limit}`;
+    }
+
+    function severityColor(p) {
+      if (p >= 90) return "var(--danger)";
+      if (p >= 75) return "var(--warn)";
+      return "currentColor";
+    }
+
+    function providerLetter(id) {
+      return PROVIDER_LETTER[id] || id.slice(0, 1).toUpperCase();
+    }
+
+    function compactDollars(value) {
+      const match = String(value).match(/\$([\d,]+(?:\.\d+)?)/);
+      if (!match) return null;
+      const n = parseFloat(match[1].replace(/,/g, ""));
+      if (!Number.isFinite(n)) return null;
+      if (n >= 100) return `$${Math.round(n)}`;
+      if (n >= 10) return `$${n.toFixed(1).replace(/\.0$/, "")}`;
+      return `$${n.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}`;
+    }
+
+    function compactTextValue(value) {
+      const dollars = compactDollars(value);
+      if (dollars) return dollars;
+      const pctMatch = String(value).match(/(\d+(?:\.\d+)?)\s*%/);
+      if (pctMatch) return `${Math.round(parseFloat(pctMatch[1]))}%`;
+      const head = String(value).split("·")[0].trim();
+      return head.length > 10 ? head.slice(0, 9) + "…" : head;
+    }
+
+    /** Kalan kota — sekme başlığı için sade sayı (C:93 = %93 kaldı). */
+    function remainingValue(line) {
+      const kind = line.format?.kind;
+      if (kind === "percent") {
+        return String(Math.round(Math.max(0, Math.min(100, line.limit - line.used))));
+      }
+      if (kind === "dollars") {
+        const left = Math.max(0, line.limit - line.used);
+        if (left >= 100) return `$${Math.round(left)}`;
+        if (left >= 10) return `$${left.toFixed(1).replace(/\.0$/, "")}`;
+        return `$${left.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}`;
+      }
+      if (kind === "count") {
+        return String(Math.round(Math.max(0, line.limit - line.used)));
+      }
+      return String(Math.round(Math.max(0, 100 - pct(line.used, line.limit))));
+    }
+
+    function pickTitleMetric(snapshot) {
+      const progress = snapshot.lines.filter((l) => l.type === "progress");
+      const text = snapshot.lines.filter((l) => l.type === "text");
+      const findProgress = (re) => progress.find((l) => re.test(l.label));
+      const findText = (re) => text.find((l) => re.test(l.label));
+
+      const weekly = findProgress(/week/i);
+      if (weekly) return remainingValue(weekly);
+
+      const session = findProgress(/session/i);
+      if (session) return remainingValue(session);
+
+      const credits = findProgress(/credit/i);
+      if (credits) return remainingValue(credits);
+
+      const keyLimit = findProgress(/limit/i);
+      if (keyLimit) return remainingValue(keyLimit);
+
+      const anyPercent = progress.find((l) => l.format?.kind === "percent");
+      if (anyPercent) return remainingValue(anyPercent);
+
+      const anyCount = progress.find((l) => l.format?.kind === "count");
+      if (anyCount) return remainingValue(anyCount);
+
+      const balance = findText(/balance/i);
+      if (balance) return compactDollars(balance.value)?.replace(/^\$/, "$") || compactTextValue(balance.value);
+
+      const anyDollars = progress.find((l) => l.format?.kind === "dollars");
+      if (anyDollars) return remainingValue(anyDollars);
+
+      return null;
+    }
+
+    function titleSummary(snapshots) {
+      const chunks = snapshots
+        .map((s) => {
+          const value = pickTitleMetric(s);
+          if (!value) return null;
+          return `${providerLetter(s.providerId)}:${value}`;
+        })
+        .filter(Boolean);
+      const time = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+      if (!chunks.length) return time;
+      return `${chunks.join(" ")} · ${time}`;
+    }
+
+    function renderCard(snapshot, index) {
+      const color = providerColor(snapshot.providerId);
+      const fetched = snapshot.fetchedAt
+        ? new Date(snapshot.fetchedAt).toLocaleString("tr-TR")
+        : "—";
+
+      const progressAndText = snapshot.lines.filter((l) => l.type === "progress" || l.type === "text");
+      const badges = snapshot.lines.filter((l) => l.type === "badge");
+
+      const metrics = progressAndText.map((line) => {
+        if (line.type === "progress") {
+          const p = pct(line.used, line.limit);
+          const barColor = severityColor(p);
+          return `
+            <div class="metric progress">
+              <div class="metric-label">
+                <span>${escapeHtml(line.label)}</span>
+                <span class="metric-value" style="color:${barColor}">${escapeHtml(formatProgress(line))}</span>
+              </div>
+              <div class="track"><div class="fill" style="width:${p}%; background: linear-gradient(90deg, ${color}99, ${color});"></div></div>
+            </div>`;
+        }
+        return `
+          <div class="text-metric">
+            <span>${escapeHtml(line.label)}</span>
+            <span class="value">${escapeHtml(line.value)}</span>
+          </div>`;
+      }).join("");
+
+      const badgeBlock = badges.length
+        ? `<div class="badge-row">${badges.map((b) => {
+            const style = b.color ? ` style="border-color:${b.color}55;color:${b.color}"` : "";
+            return `<span class="badge"${style}>${escapeHtml(b.text || b.label)}</span>`;
+          }).join("")}</div>`
+        : "";
+
+      return `
+        <article class="card" style="animation-delay:${index * 60}ms">
+          <div class="card-head">
+            <div class="provider">
+              <div class="mark" style="background:${color}">${escapeHtml(initials(snapshot.displayName))}</div>
+              <div>
+                <h2>${escapeHtml(snapshot.displayName)}</h2>
+                <small>Güncellendi: ${escapeHtml(fetched)}</small>
+              </div>
+            </div>
+            ${snapshot.plan ? `<span class="plan" title="${escapeHtml(snapshot.plan)}">${escapeHtml(snapshot.plan)}</span>` : ""}
+          </div>
+          <div class="metrics">
+            ${metrics}
+            ${badgeBlock}
+          </div>
+        </article>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function setStatus(kind, text) {
+      statusDot.className = "dot" + (kind ? ` ${kind}` : "");
+      statusText.textContent = text;
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error("Beklenmeyen yanıt");
+
+        document.title = titleSummary(data);
+        setStatus("live", `${data.length} sağlayıcı · son yenileme ${new Date().toLocaleTimeString("tr-TR")}`);
+
+        if (!data.length) {
+          grid.innerHTML = `<div class="empty">Henüz veri yok — OpenUsage'ta bir yenileme bekleyin.</div>`;
+          return;
+        }
+
+        grid.innerHTML = data.map(renderCard).join("");
+      } catch (err) {
+        document.title = "OpenUsage — veri yok";
+        setStatus("error", "Kullanım verisi alınamadı");
+        grid.innerHTML = `
+          <div class="error-panel">
+            <strong>Veri yüklenemedi</strong>
+            OpenUsage'ta bir yenileme bekleyin veya sayfayı yenileyin.
+            <br /><code>${escapeHtml(API_URL)}</code>
+            <br /><small style="display:block;margin-top:10px;">${escapeHtml(err.message)}</small>
+          </div>`;
+      }
+    }
+
+    refresh();
+    setInterval(refresh, REFRESH_MS);
+  </script>
+</body>
+</html>
