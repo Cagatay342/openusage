@@ -235,7 +235,7 @@ final class AntigravityQuotaSummaryTests: XCTestCase {
                 return HTTPResponse(statusCode: 200, headers: [:], body: Data(#"{"paidTier":{"name":"Google AI Pro"},"cloudaicompanionProject":"projects/test-proj"}"#.utf8))
             }
             if path.contains("retrieveUserQuotaSummary") {
-                if let body = request.httpBody,
+                if let body = request.body,
                    let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
                    json["project"] as? String == "projects/test-proj" {
                     return HTTPResponse(statusCode: 200, headers: [:], body: Data("{\(groupsJSON)}".utf8))
