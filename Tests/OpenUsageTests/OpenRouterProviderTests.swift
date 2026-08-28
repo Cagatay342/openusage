@@ -87,7 +87,9 @@ final class OpenRouterAuthStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(store.loadAPIKey()?.apiKey, "sk-or-saved")
-        XCTAssertEqual(store.keyStatus(), .saved)
+        // Saved *and* Aider means override, not `.saved`: clearing the saved key falls back to the
+        // Aider key rather than disconnecting, which is the lifecycle `.overrideActive` promises.
+        XCTAssertEqual(store.keyStatus(), .overrideActive)
     }
 
     func testReturnsNilWhenNoKeyAnywhere() {

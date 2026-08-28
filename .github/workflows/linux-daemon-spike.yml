@@ -29,8 +29,9 @@ jobs:
   linux-daemon-spike:
     name: Build & test openusage-daemon
     runs-on: ubuntu-24.04
-    # Intentionally NOT listed in branch protection — spike/experimental until the target split.
-    continue-on-error: true
+    # Still not a required check — this does not build the shipped macOS app. But it does not swallow
+    # its own failures either: `continue-on-error` reported a green run for a failed job, which is
+    # exactly how a broken suite goes unnoticed.
     defaults:
       run:
         working-directory: spikes/windows-core
