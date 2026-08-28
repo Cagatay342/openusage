@@ -1,3 +1,8 @@
+/* Win32Shim is Windows-only. Guarding the whole translation unit keeps `swift build` and
+   `swift test` green on Linux and macOS, where this target is still built but never linked
+   into a product (see the platform condition in Package.swift). */
+#ifdef _WIN32
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
@@ -135,3 +140,8 @@ int ou_sqlite_write_fixture(const char *path, const char *key, const char *value
     p_sqlite3_close(db);
     return rc;
 }
+
+#else
+/* ISO C requires a translation unit to hold at least one declaration. */
+typedef int ou_win32shim_unused_on_this_platform;
+#endif /* _WIN32 */

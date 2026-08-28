@@ -4,6 +4,8 @@ struct CursorAuthState: Hashable, Sendable {
     enum Source: Hashable, Sendable {
         case sqlite
         case keychain
+        /// `cursor-agent`'s plain-JSON credential file (Linux).
+        case file
     }
 
     var accessToken: String?
@@ -15,6 +17,7 @@ enum CursorAuthError: Error, LocalizedError, Equatable {
     case notLoggedIn
     case sessionExpired
     case tokenExpired
+    case readOnlyStore
 
     var errorDescription: String? {
         switch self {
@@ -24,15 +27,20 @@ enum CursorAuthError: Error, LocalizedError, Equatable {
             return "Session expired. Sign in via Cursor app or run `agent login`."
         case .tokenExpired:
             return "Token expired. Sign in via Cursor app or run `agent login`."
+        case .readOnlyStore:
+            return "OpenUsage does not write to Cursor's credential file."
         }
     }
 }
 
 struct CursorAuthStore: Sendable {
-    #if os(Windows)
     static let stateDBPath = WellKnownPaths.cursorStateDBPath
-    #else
-    static let stateDBPath = "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+    #if os(Linux)
+    /// `cursor-agent` on Linux keeps its OAuth tokens in plain JSON under the XDG config dir; the
+    /// desktop app still uses the VS Code state DB. Both are checked so either install works.
+    static var cliAuthFilePath: String {
+        WellKnownPaths.configHome.appendingPathComponent("cursor/auth.json", isDirectory: false).path
+    }
     #endif
     static let accessTokenKey = "cursorAuth/accessToken"
     static let refreshTokenKey = "cursorAuth/refreshToken"
@@ -43,15 +51,18 @@ struct CursorAuthStore: Sendable {
 
     var sqlite: SQLiteAccessing
     var keychain: KeychainAccessing
+    var files: TextFileAccessing
     var now: @Sendable () -> Date
 
     init(
         sqlite: SQLiteAccessing = CursorAuthStore.defaultSQLiteAccessor(),
         keychain: KeychainAccessing = CursorAuthStore.defaultKeychainAccessor(),
+        files: TextFileAccessing = LocalTextFileAccessor(),
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.sqlite = sqlite
         self.keychain = keychain
+        self.files = files
         self.now = now
     }
 
@@ -95,8 +106,51 @@ struct CursorAuthStore: Sendable {
             )
         }
 
+        #if os(Linux)
+        // Last, because a desktop Cursor install is the primary source everywhere else; on a headless
+        // box the `cursor-agent` CLI file is usually the only one present.
+        if let cliState = loadCLIFileAuthState() {
+            return cliState
+        }
+        #endif
+
         return nil
     }
+
+    #if os(Linux)
+    private struct CLIAuthFile: Decodable {
+        var accessToken: String?
+        var refreshToken: String?
+    }
+
+    /// Reads `cursor-agent`'s credential file. Returns nil when it is absent or holds no tokens.
+    ///
+    /// An absent file is normal — the user simply hasn't signed in. A file that exists but cannot be
+    /// read or parsed is a real, fixable problem, so it is logged rather than silently reported as
+    /// "not logged in".
+    func loadCLIFileAuthState() -> CursorAuthState? {
+        let path = Self.cliAuthFilePath
+        guard files.exists(path) else { return nil }
+
+        let text: String
+        do {
+            text = try files.readText(path)
+        } catch {
+            AppLog.error(LogTag.auth("cursor"), "cannot read \(path): \(error.localizedDescription)")
+            return nil
+        }
+        guard let data = text.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(CLIAuthFile.self, from: data)
+        else {
+            AppLog.error(LogTag.auth("cursor"), "\(path) is not valid cursor-agent credential JSON")
+            return nil
+        }
+        let accessToken = decoded.accessToken?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let refreshToken = decoded.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        guard accessToken != nil || refreshToken != nil else { return nil }
+        return CursorAuthState(accessToken: accessToken, refreshToken: refreshToken, source: .file)
+    }
+    #endif
 
     func needsRefresh(_ accessToken: String?) -> Bool {
         guard let accessToken,
@@ -113,6 +167,10 @@ struct CursorAuthStore: Sendable {
             try writeStateValue(Self.accessTokenKey, accessToken)
         case .keychain:
             try keychain.writeGenericPassword(service: Self.keychainAccessTokenService, value: accessToken)
+        case .file:
+            // `cursor-agent` owns that file and OpenUsage never writes back to a third-party store.
+            // The caller logs this and keeps using the rotated token for the current session.
+            throw CursorAuthError.readOnlyStore
         }
     }
 
@@ -158,6 +216,8 @@ struct CursorAuthStore: Sendable {
     static func defaultSQLiteAccessor() -> SQLiteAccessing {
         #if os(Windows)
         WinSQLiteAccessor()
+        #elseif os(Linux)
+        LinuxSQLiteAccessor()
         #else
         NoOpSQLiteAccessor()
         #endif

@@ -145,6 +145,8 @@ extension CursorAuthError: CategorizedError {
         switch self {
         case .notLoggedIn: .notLoggedIn
         case .sessionExpired, .tokenExpired: .authExpired
+        // Not an auth failure: the token is fine, OpenUsage just refuses to write it back.
+        case .readOnlyStore: .other
         }
     }
 }

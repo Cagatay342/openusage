@@ -1,0 +1,34 @@
+[Unit]
+Description=OpenUsage local usage API
+Documentation=https://github.com/robinebers/openusage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Loopback-only by default, which needs no token. To reach it from another machine, prefer an SSH
+# tunnel — it exposes nothing:
+#   ssh -N -L 6736:127.0.0.1:6736 <user>@<this-host>
+# A routable bind (--listen 0.0.0.0) is refused unless a token is set. Keep the token in a file only
+# this user can read — unit files and process arguments are both world-readable, an 0600 file is not:
+#   EnvironmentFile=%h/.config/openusage/daemon.env
+#   ExecStart=@EXEC_PATH@ --listen 0.0.0.0
+# See docs/linux.md, "Exposing it on a public host".
+# @EXEC_PATH@ is substituted by script/install_linux_daemon.sh with the resolved install path,
+# so a custom XDG_DATA_HOME does not produce a unit that points at a binary which isn't there.
+ExecStart=@EXEC_PATH@
+Restart=on-failure
+RestartSec=10
+
+# The daemon reads the provider credentials in this user's home and must therefore run as that user,
+# never as root. Deliberately *not* using ProtectSystem=strict or ProtectHome: OpenUsage writes
+# rotated OAuth tokens back to ~/.claude, ~/.codex and ~/.grok the way the macOS app does, and a
+# read-only home would break that silently as tokens expire.
+NoNewPrivileges=true
+PrivateTmp=true
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=default.target
