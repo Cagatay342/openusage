@@ -1,3 +1,4 @@
+#if os(Windows)
 import Foundation
 import OpenUsageCore
 import Win32Shim
@@ -130,3 +131,17 @@ enum SidecarEntry {
         await SidecarServer.run()
     }
 }
+
+#else
+import Foundation
+
+// The sidecar is the Windows delivery vehicle: Linux ships `openusage-daemon` and macOS the
+// menu-bar app. A stub entry point keeps `swift build` and `swift test` green on every platform.
+@main
+enum SidecarUnsupportedPlatform {
+    static func main() {
+        FileHandle.standardError.write(Data("sidecar is only supported on Windows.\n".utf8))
+        exit(1)
+    }
+}
+#endif

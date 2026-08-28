@@ -1,0 +1,123 @@
+# SPIKE JOB — non-required Linux CI for the headless core and `openusage-daemon` only.
+# This does NOT build the shipped macOS OpenUsage app. Do not mark as a required check until
+# the real OpenUsageCore target split lands on main and stays green.
+
+name: Linux Daemon Spike
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'spikes/windows-core/**'
+      - 'script/install_linux_daemon.sh'
+      - 'script/openusage.service'
+      - '.github/workflows/linux-daemon-spike.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-daemon-spike:
+    name: Build & test openusage-daemon
+    runs-on: ubuntu-24.04
+    # Intentionally NOT listed in branch protection — spike/experimental until the target split.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: spikes/windows-core
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.2'
+
+      # Cursor's desktop state DB is read through the sqlite3 CLI, mirroring the macOS app.
+      - name: Install sqlite3
+        working-directory: .
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      # The shared core carries byte-identical copies of the macOS app's API router and dashboard.
+      # Until a single canonical target exists, CI is what stops them silently drifting apart.
+      - name: Check shared files still match the macOS app
+        working-directory: .
+        run: |
+          set -euo pipefail
+          status=0
+          for pair in \
+            "Sources/OpenUsage/Services/LocalUsageAPI.swift:spikes/windows-core/Sources/OpenUsageCore/Services/LocalUsageAPI.swift" \
+            "Sources/OpenUsage/Services/LocalUsageDashboard.swift:spikes/windows-core/Sources/OpenUsageCore/Services/LocalUsageDashboard.swift" \
+            "Sources/OpenUsage/Resources/usage-dashboard.html:spikes/windows-core/Sources/OpenUsageCore/Resources/usage-dashboard.html" ; do
+            app="${pair%%:*}"; core="${pair##*:}"
+            if ! diff -q "$app" "$core" >/dev/null; then
+              echo "::error file=$core::drifted from $app — copy it across or make it a shared target"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+      # The daemon must come up, bind loopback, and serve the dashboard and API with no credentials
+      # present — the CI runner has none, so every provider is expected to be absent, not to error.
+      - name: Smoke test the daemon
+        run: |
+          set -euo pipefail
+          swift build -c release --product openusage-daemon
+          "$(swift build -c release --show-bin-path)/openusage-daemon" --interval 30 &
+          daemon_pid=$!
+          trap 'kill "$daemon_pid" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:6736/v1/usage && break
+            sleep 1
+          done
+
+          echo "--- GET / (dashboard)"
+          curl -fsS -o /dev/null -w 'status=%{http_code} type=%{content_type} bytes=%{size_download}\n' \
+            http://127.0.0.1:6736/
+          echo "--- GET /v1/usage"
+          curl -fsS http://127.0.0.1:6736/v1/usage
+          echo
+          echo "--- unknown provider must be 404, bad method must be 405"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:6736/v1/usage/nope)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:6736/v1/usage)" = "405"
+
+          echo "--- must not be reachable off loopback by default"
+          ! curl -fsS --max-time 3 -o /dev/null "http://$(hostname -I | awk '{print $1}'):6736/v1/usage"
+
+          echo "--- must never send CORS headers"
+          ! curl -sS -D - -o /dev/null http://127.0.0.1:6736/v1/usage | grep -qi 'access-control'
+
+          echo "--- a routable bind without a token must be refused"
+          ! "$(swift build -c release --show-bin-path)/openusage-daemon" --listen 0.0.0.0
+
+          echo "--- a typo in an option must be refused, not silently ignored"
+          ! "$(swift build -c release --show-bin-path)/openusage-daemon" --intrval 60
+
+      - name: Token auth on a routable bind
+        run: |
+          set -euo pipefail
+          bin="$(swift build -c release --show-bin-path)/openusage-daemon"
+          OPENUSAGE_TOKEN=ci-token "$bin" --port 6737 --listen 0.0.0.0 --interval 30 &
+          daemon_pid=$!
+          trap 'kill "$daemon_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null -H 'Authorization: Bearer ci-token' http://127.0.0.1:6737/v1/usage && break
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:6737/v1/usage)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer wrong' http://127.0.0.1:6737/v1/usage)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token' http://127.0.0.1:6737/v1/usage)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:6737/v1/usage?token=ci-token')" = "200"
+
+      - name: Check the install script runs
+        working-directory: .
+        run: script/install_linux_daemon.sh --no-service

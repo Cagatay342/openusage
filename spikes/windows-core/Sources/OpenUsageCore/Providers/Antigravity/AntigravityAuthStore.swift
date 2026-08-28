@@ -39,6 +39,13 @@ struct AntigravityAuthStore: Sendable {
 
     /// Blocking keychain read — call off the main actor.
     func loadKeychainToken() -> AntigravityKeychainToken? {
+        #if os(Linux)
+        // On Linux the `agy` CLI writes its OAuth token to a plain file instead of an OS keyring.
+        // The payload is the same shape, so the shared parser handles it.
+        if let token = loadLinuxTokenFile() {
+            return token
+        }
+        #endif
         guard let raw = try? keychain.readGenericPassword(service: Self.keychainService, account: Self.keychainAccount),
               let token = Self.extractToken(fromKeychainRaw: raw)
         else {
@@ -46,6 +53,35 @@ struct AntigravityAuthStore: Sendable {
         }
         return token
     }
+
+    #if os(Linux)
+    /// Where the `agy` CLI stores its OAuth token on Linux.
+    static let linuxTokenFilePath = "~/.gemini/antigravity-cli/antigravity-oauth-token"
+
+    /// An absent file is normal (not signed in with `agy`); a present but unreadable or malformed one
+    /// is a real problem and is logged rather than silently reported as "no credentials".
+    func loadLinuxTokenFile() -> AntigravityKeychainToken? {
+        guard files.exists(Self.linuxTokenFilePath) else { return nil }
+
+        let text: String
+        do {
+            text = try files.readText(Self.linuxTokenFilePath)
+        } catch {
+            AppLog.error(
+                LogTag.auth("antigravity"),
+                "cannot read \(Self.linuxTokenFilePath): \(error.localizedDescription)"
+            )
+            return nil
+        }
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            AppLog.error(LogTag.auth("antigravity"), "\(Self.linuxTokenFilePath) is not valid agy token JSON")
+            return nil
+        }
+        return Self.tokenFromObject(object)
+    }
+    #endif
 
     /// Whether a keychain access token is worth attempting: expiry unknown, or it hasn't passed yet.
     func isUsable(expiry: Date?) -> Bool {
