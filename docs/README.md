@@ -40,6 +40,12 @@ How the app is built and how to extend it.
 - [Debugging & capturing logs](debugging.md) — running a local build and streaming logs
 - [Logging](logging.md) — the file log, log levels, subsystem tags, and what is never logged
 
+## Linux research (experimental)
+
+Not a shipped platform yet — spike code under `spikes/` only.
+
+- [Linux (experimental)](linux.md) — `openusage-daemon`, install, remote access, credentials, known gaps
+
 ## Windows research (experimental)
 
 Not a shipped platform yet — spike code under `spikes/` only.

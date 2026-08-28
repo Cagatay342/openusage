@@ -40,7 +40,7 @@ Most providers read the credentials already on your machine (keychain, auth file
 - **Global shortcut.** Toggle the popover from anywhere — record any combo in Settings.
 - **Customize.** Add/remove widgets, drag-reorder providers and metrics.
 - **Stale-while-revalidate.** Cached values display instantly at launch; refresh runs every 5 minutes.
-- **[Local HTTP API](docs/local-http-api.md).** Other apps can read your usage as JSON from `127.0.0.1:6736` (`/v1/usage`), same format as the original app. It is loopback-only and serves usage numbers, never credentials; note that browser pages can read it too — see the [privacy note](docs/local-http-api.md#cors-and-privacy).
+- **[Local HTTP API](docs/local-http-api.md).** Other apps can read your usage as JSON from `127.0.0.1:6736` (`/v1/usage`), same format as the original app. It serves usage numbers, never credentials, but it is **not** loopback-only: the listener also answers on your machine's LAN addresses, and any browser page can read it too — see the [privacy note](docs/local-http-api.md#cors-and-privacy).
 - **[Proxy support](docs/proxy.md).** Route provider requests through SOCKS5 or HTTP(S) via `~/.openusage/config.json`.
 - **Native settings.** Launch at login, global shortcut, menu style, theme, density, 12/24-hour time — see [Settings](docs/settings.md).
 - **[Automatic updates](docs/updates.md).** Signed, notarized in-app updates via Sparkle, with an optional early access channel.
