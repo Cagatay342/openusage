@@ -6,6 +6,14 @@ name: Linux Daemon Spike
 
 on:
   workflow_dispatch:
+  # Run on PRs too, not just after merge: the drift check below only earns its keep if it
+  # blocks the copy from diverging before it lands.
+  pull_request:
+    paths:
+      - 'spikes/windows-core/**'
+      - 'script/install_linux_daemon.sh'
+      - 'script/openusage.service'
+      - '.github/workflows/linux-daemon-spike.yml'
   push:
     branches: [main]
     paths:
