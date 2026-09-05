@@ -196,12 +196,15 @@ internal sealed class SidecarSupervisor : IDisposable
             candidates.Add(env);
         }
 
-        var cwd = Environment.CurrentDirectory;
-        candidates.Add(Path.Combine(cwd, "sidecar.exe"));
-        candidates.Add(Path.Combine(cwd, ".build", "x86_64-unknown-windows-msvc", "debug", "sidecar.exe"));
-        candidates.Add(Path.Combine(cwd, ".build", "x86_64-unknown-windows-msvc", "release", "sidecar.exe"));
+        // Anchor on the shell's own folder, not Environment.CurrentDirectory: the "Start in"
+        // directory isn't reliably honored by every launch path (Start Menu tiles, taskbar
+        // pins), which left this walk starting from an unrelated cwd and never finding the exe.
+        var baseDir = AppContext.BaseDirectory;
+        candidates.Add(Path.Combine(baseDir, "sidecar.exe"));
+        candidates.Add(Path.Combine(baseDir, ".build", "x86_64-unknown-windows-msvc", "debug", "sidecar.exe"));
+        candidates.Add(Path.Combine(baseDir, ".build", "x86_64-unknown-windows-msvc", "release", "sidecar.exe"));
 
-        var dir = new DirectoryInfo(cwd);
+        var dir = new DirectoryInfo(baseDir);
         for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent!)
         {
             var spike = Path.Combine(dir.FullName, "spikes", "windows-core");
