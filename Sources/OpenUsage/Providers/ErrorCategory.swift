@@ -168,6 +168,20 @@ extension CopilotUsageError: CategorizedError {
     }
 }
 
+extension OpenCodeUsageError: CategorizedError {
+    var errorCategory: ErrorCategory {
+        switch self {
+        case .notLoggedIn: .notLoggedIn
+        case .credentialsUnreadable: .other
+        case .connectionFailed: .network
+        case .invalidResponse: .decoding
+        case .requestFailed(let status): ErrorCategory.http(status)
+        case .unauthorized: .authInvalid
+        case .noGoSubscription: .notAvailable
+        }
+    }
+}
+
 extension OpenRouterAuthError: CategorizedError {
     var errorCategory: ErrorCategory {
         switch self {

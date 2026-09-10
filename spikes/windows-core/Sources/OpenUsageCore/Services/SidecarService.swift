@@ -19,6 +19,7 @@ public final class SidecarService {
             ("cursor", CursorProvider()),
             ("antigravity", AntigravityProvider()),
             ("grok", GrokProvider()),
+            ("opencode", OpenCodeProvider()),
             ("openrouter", OpenRouterProvider()),
             ("zai", ZAIProvider())
         ]

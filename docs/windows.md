@@ -16,7 +16,7 @@ Flyout (tray or strip → provider cards with `% left`, spend, Refresh):
 
 | Area | Spike state |
 |---|---|
-| Core providers | Claude, Codex, Cursor, **Antigravity**, Grok, OpenRouter, Z.ai in `spikes/windows-core/` |
+| Core providers | Claude, Codex, Cursor, **Antigravity**, Grok, OpenCode, OpenRouter, Z.ai in `spikes/windows-core/` |
 | UI | Tray logo + **floating always-on-top strip** + dark flyout with progress bars |
 | Refresh | Manual + **every 5 minutes** (macOS cadence) |
 | System | Single instance, launch at login toggle, toasts, logging, sidecar supervision |
@@ -44,6 +44,7 @@ OpenUsage reads credentials already on your PC — same idea as macOS, with Wind
 | **Codex** | `%USERPROFILE%\.codex\auth.json` (respects `CODEX_HOME` if set). |
 | **Cursor** | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (SQLite; live read-only open while Cursor runs). **Note:** Swift `FileManager.applicationSupport` does not match this path — the spike uses `%APPDATA%` explicitly. |
 | **Grok** | `%USERPROFILE%\.grok\auth.json` and `%USERPROFILE%\.grok\logs\unified.jsonl`. |
+| **OpenCode** | `%USERPROFILE%\.local\share\opencode\auth.json` (the `opencode-go` key; respects `OPENCODE_DATA_DIR` / `XDG_DATA_HOME`). |
 | **OpenRouter** | Aider `%USERPROFILE%\.aider\oauth-keys.env` / `%USERPROFILE%\.env` / `%USERPROFILE%\.aider.conf.yml`, env `OPENROUTER_API_KEY`, or `%USERPROFILE%\.config\openusage\openrouter.json`, or `%USERPROFILE%\.config\openrouter\key.json`. |
 | **Z.ai** | Env `ZAI_API_KEY` / `Z_AI_API_KEY`, or `%USERPROFILE%\.config\openusage\zai.json`. |
 | **Copilot** (not in spike UI yet) | `%APPDATA%\GitHub CLI\hosts.yml`; Credential Manager `gh:github.com:<user>`. |
@@ -62,7 +63,7 @@ Third-party stores are **read-only** in the spike (no write-back to Cursor DB or
 | Full dashboard, settings, customize | Provider cards, refresh, launch-at-login; no Customize/Settings screens yet |
 | Local HTTP API `127.0.0.1:6736` | **Not implemented** on Windows yet |
 | Global shortcut | **Not implemented** |
-| All 9 providers in production app | 7 in core spike (incl. Antigravity); Copilot/Devin not wired in shell |
+| All 10 providers in production app | 8 in core spike (incl. Antigravity); Copilot/Devin not wired in shell |
 | Notarized DMG | Unsigned zip |
 | Reset countdowns on meters | **Not on the wire yet** (`resetsAt` deferred) |
 

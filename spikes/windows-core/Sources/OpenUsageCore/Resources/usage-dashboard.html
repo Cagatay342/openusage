@@ -260,6 +260,53 @@
       color: #d6e4ff;
     }
 
+    /* ---- Widget mode (?widget): dense one-row-per-provider view for tiny screens ---- */
+    body.widget-mode { padding: 8px 8px 12px; min-height: auto; overflow-x: hidden; }
+    body.widget-mode .shell { max-width: none; }
+    body.widget-mode header { margin-bottom: 8px; }
+    body.widget-mode .brand p,
+    body.widget-mode footer { display: none; }
+    body.widget-mode .brand h1 { font-size: 0.85rem; }
+    body.widget-mode .status-bar { padding: 4px 8px; font-size: 0.6rem; gap: 6px; }
+    body.widget-mode .dot { width: 6px; height: 6px; }
+    body.widget-mode .grid { display: block; }
+
+    .w-list { display: flex; flex-direction: column; gap: 5px; }
+    .w-row {
+      display: grid;
+      grid-template-columns: minmax(74px, auto) 1fr;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 7px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-elevated);
+    }
+    .w-name {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      font-size: 0.66rem;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+    .w-name > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .w-mark {
+      width: 15px; height: 15px; border-radius: 5px;
+      display: grid; place-items: center;
+      font-size: 0.5rem; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .w-meters { display: flex; flex-wrap: wrap; gap: 3px 9px; justify-content: flex-end; }
+    .w-meter {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 0.6rem; color: var(--text-muted); white-space: nowrap;
+    }
+    .w-meter > b { font-size: 0.62rem; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 700; }
+    .w-mini { width: 26px; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; flex-shrink: 0; }
+    .w-mini > i { display: block; height: 100%; border-radius: inherit; }
+    .w-note { font-size: 0.6rem; color: var(--danger); }
+
     footer {
       margin-top: 28px;
       text-align: center;
@@ -300,11 +347,23 @@
     const API_URL = "/v1/usage";
     const REFRESH_MS = 30_000;
 
+    // Tiny-screen mode: append ?widget (or ?view=widget / ?compact) to the dashboard URL for a dense
+    // one-row-per-provider sheet — every provider's limits on one small widget. `scale` (default 1.25)
+    // enlarges the whole sheet to fill the widget; pass ?widget&scale=1.4 to taste.
+    const PARAMS = new URLSearchParams(location.search);
+    const WIDGET_MODE = PARAMS.has("widget") || PARAMS.has("compact") || PARAMS.get("view") === "widget";
+    if (WIDGET_MODE) {
+      document.body.classList.add("widget-mode");
+      const scale = parseFloat(PARAMS.get("scale"));
+      document.body.style.zoom = String(Number.isFinite(scale) && scale > 0 ? scale : 1.25);
+    }
+
     const COLORS = {
       claude: "#DE7356",
       codex: "#10A37F",
       cursor: "#8E8E93",
       grok: "#98989D",
+      opencode: "#C0C0C8",
       openrouter: "#6467F2",
       antigravity: "#4285F4",
       copilot: "#A855F7",
@@ -322,6 +381,7 @@
       codex: "X",
       cursor: "R",
       grok: "G",
+      opencode: "O",
       openrouter: "O",
       antigravity: "A",
       copilot: "P",
@@ -547,6 +607,45 @@
         </article>`;
     }
 
+    /** Compact meter value for widget mode: percent/count as-is, capped dollars as the remaining amount. */
+    function widgetValue(line) {
+      if (line.format?.kind === "dollars") {
+        const left = Math.max(0, line.limit - line.used);
+        return left >= 10 ? `$${left.toFixed(0)}` : `$${left.toFixed(2)}`;
+      }
+      return formatProgress(line);
+    }
+
+    /** One dense row for widget mode: provider mark + name on the left, its limit meters on the right. */
+    function renderWidgetRow(snapshot) {
+      const color = providerColor(snapshot.providerId);
+      const progress = snapshot.lines.filter((l) => l.type === "progress");
+      const badges = snapshot.lines.filter((l) => l.type === "badge");
+
+      const meters = progress.map((line) => {
+        const p = pct(line.used, line.limit);
+        const sev = severityColor(p);
+        const barColor = sev === "currentColor" ? color : sev;
+        return `<span class="w-meter" title="${escapeHtml(line.label)}">` +
+          `<span>${escapeHtml(line.label)}</span>` +
+          `<span class="w-mini"><i style="width:${p}%;background:${barColor}"></i></span>` +
+          `<b style="color:${sev}">${escapeHtml(widgetValue(line))}</b></span>`;
+      }).join("");
+
+      const fallback = badges
+        .map((b) => `<span class="w-note">${escapeHtml(b.text || b.label)}</span>`)
+        .join("");
+
+      return `
+        <div class="w-row">
+          <div class="w-name">
+            <span class="w-mark" style="background:${color}">${escapeHtml(providerLetter(snapshot.providerId))}</span>
+            <span>${escapeHtml(snapshot.displayName)}</span>
+          </div>
+          <div class="w-meters">${meters || fallback || `<span class="w-meter">—</span>`}</div>
+        </div>`;
+    }
+
     function escapeHtml(s) {
       return String(s)
         .replaceAll("&", "&amp;")
@@ -575,7 +674,9 @@
           return;
         }
 
-        grid.innerHTML = data.map(renderCard).join("");
+        grid.innerHTML = WIDGET_MODE
+          ? `<div class="w-list">${data.map(renderWidgetRow).join("")}</div>`
+          : data.map(renderCard).join("");
       } catch (err) {
         document.title = "OpenUsage — veri yok";
         setStatus("error", "Kullanım verisi alınamadı");

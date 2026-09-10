@@ -29,6 +29,7 @@ public enum OpenUsageLinuxDaemon {
             ("cursor", CursorProvider()),
             ("antigravity", AntigravityProvider()),
             ("grok", GrokProvider()),
+            ("opencode", OpenCodeProvider()),
             ("openrouter", OpenRouterProvider()),
             ("zai", ZAIProvider())
         ]

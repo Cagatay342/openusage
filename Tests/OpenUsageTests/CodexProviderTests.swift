@@ -241,35 +241,31 @@ final class CodexUsageMapperTests: XCTestCase {
         XCTAssertEqual(progress(mapped.lines, "Weekly")?.used, 7)
     }
 
-    func testSurfacesSparkLinesFromAdditionalRateLimits() throws {
-        // The usage body carries model-specific limits in `additional_rate_limits`; the Spark entry's
-        // primary/secondary windows become the Spark (5-hour) and Spark Weekly meters. Regression for
-        // issue #796 — the Swift edition dropped these when it didn't port the JS plugin's parsing.
+    func testSoleWeeklyLimitInPrimarySlotReadsAsWeekly() throws {
+        // Codex can move a temporarily sole weekly limit into `primary_window` (with no
+        // `secondary_window`). Classifying by the window's duration keeps it on the Weekly meter instead
+        // of mislabeling it "Session". Spark/model-specific limits in `additional_rate_limits` are
+        // ignored entirely.
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let nowSec = Int(now.timeIntervalSince1970)
         let body = Data("""
         {
           "rate_limit": {
-            "primary_window": { "used_percent": 5, "reset_after_seconds": 60 },
-            "secondary_window": { "used_percent": 10, "reset_after_seconds": 120 }
+            "primary_window": {
+              "used_percent": 100,
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 434277,
+              "reset_at": \(nowSec + 434277)
+            },
+            "secondary_window": null
           },
           "additional_rate_limits": [
             {
               "limit_name": "GPT-5.3-Codex-Spark",
               "metered_feature": "codex_bengalfox",
               "rate_limit": {
-                "primary_window": {
-                  "used_percent": 25,
-                  "limit_window_seconds": 18000,
-                  "reset_after_seconds": 3600,
-                  "reset_at": \(nowSec + 3600)
-                },
-                "secondary_window": {
-                  "used_percent": 40,
-                  "limit_window_seconds": 604800,
-                  "reset_after_seconds": 86400,
-                  "reset_at": \(nowSec + 86400)
-                }
+                "primary_window": { "used_percent": 0, "limit_window_seconds": 18000, "reset_after_seconds": 18000 },
+                "secondary_window": { "used_percent": 45, "limit_window_seconds": 604800, "reset_after_seconds": 504054 }
               }
             }
           ]
@@ -279,45 +275,26 @@ final class CodexUsageMapperTests: XCTestCase {
 
         let mapped = try CodexUsageMapper.mapUsageResponse(response, now: now)
 
-        XCTAssertEqual(progress(mapped.lines, "Spark")?.used, 25)
-        XCTAssertEqual(progress(mapped.lines, "Spark")?.periodDurationMs, 18_000_000)
-        XCTAssertEqual(progress(mapped.lines, "Spark")?.resetsAt,
-                       Date(timeIntervalSince1970: TimeInterval(nowSec + 3600)))
-        XCTAssertEqual(progress(mapped.lines, "Spark Weekly")?.used, 40)
-        XCTAssertEqual(progress(mapped.lines, "Spark Weekly")?.periodDurationMs, 604_800_000)
-        // The core Session/Weekly windows are unaffected by the new parsing.
-        XCTAssertEqual(progress(mapped.lines, "Session")?.used, 5)
-        XCTAssertEqual(progress(mapped.lines, "Weekly")?.used, 10)
+        XCTAssertNil(progress(mapped.lines, "Session"))
+        let weekly = try XCTUnwrap(progress(mapped.lines, "Weekly"))
+        XCTAssertEqual(weekly.used, 100)
+        XCTAssertEqual(weekly.periodDurationMs, CodexUsageMapper.weeklyPeriodMs)
+        // No Spark rows, regardless of the additional limits present.
+        XCTAssertNil(progress(mapped.lines, "Spark"))
+        XCTAssertNil(progress(mapped.lines, "Spark Weekly"))
     }
 
-    func testMatchesSparkByMeteredFeatureWhenLimitNameLacksSpark() throws {
-        // `limit_name` wording can shift; matching `metered_feature` too keeps the row resolving.
+    func testIgnoresAdditionalRateLimits() throws {
+        // Model-specific limits (Spark and friends) carry no descriptors, so they're ignored entirely —
+        // a null/non-dictionary element or a malformed entry never throws. Only the core `rate_limit`
+        // windows are mapped.
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let body = Data("""
         {
-          "additional_rate_limits": [
-            {
-              "limit_name": "Research Preview",
-              "metered_feature": "codex_spark_preview",
-              "rate_limit": { "primary_window": { "used_percent": 12, "reset_after_seconds": 60 } }
-            }
-          ]
-        }
-        """.utf8)
-        let response = HTTPResponse(statusCode: 200, headers: [:], body: body)
-
-        let mapped = try CodexUsageMapper.mapUsageResponse(response, now: now)
-
-        XCTAssertEqual(progress(mapped.lines, "Spark")?.used, 12)
-    }
-
-    func testIgnoresNonSparkAndMalformedAdditionalRateLimits() throws {
-        // Non-Spark model limits have no descriptors, so they aren't surfaced; a null/non-dictionary
-        // element is skipped without discarding its siblings; a Spark entry missing `rate_limit` yields
-        // no lines. None of this should ever throw.
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let body = Data("""
-        {
+          "rate_limit": {
+            "primary_window": { "used_percent": 25, "limit_window_seconds": 18000, "reset_after_seconds": 60 },
+            "secondary_window": { "used_percent": 50, "limit_window_seconds": 604800, "reset_after_seconds": 120 }
+          },
           "additional_rate_limits": [
             null,
             { "limit_name": "Some Other Model", "rate_limit": { "primary_window": { "used_percent": 50, "reset_after_seconds": 60 } } },
@@ -329,6 +306,8 @@ final class CodexUsageMapperTests: XCTestCase {
 
         let mapped = try CodexUsageMapper.mapUsageResponse(response, now: now)
 
+        XCTAssertEqual(progress(mapped.lines, "Session")?.used, 25)
+        XCTAssertEqual(progress(mapped.lines, "Weekly")?.used, 50)
         XCTAssertNil(progress(mapped.lines, "Spark"))
         XCTAssertNil(progress(mapped.lines, "Spark Weekly"))
         XCTAssertNil(progress(mapped.lines, "Some Other Model"))

@@ -6,6 +6,8 @@ same web dashboard and JSON API the macOS app serves at [`docs/local-http-api.md
 
 You look at your usage in a browser at **http://127.0.0.1:6736**.
 
+Append **`?widget`** (or `?compact`, or `?view=widget`) to the dashboard URL for a dense, one-row-per-provider view — every provider's limits on one small screen, sized for a phone or desktop widget. It combines with the token in a URL, e.g. `http://<host>:6736/?token=<token>&widget`.
+
 The macOS menu-bar app in `Sources/OpenUsage/` is unchanged. The Linux daemon shares the headless core
 under `spikes/windows-core/` with the Windows sidecar — the folder name is historical; the package builds
 on macOS, Windows and Linux.
@@ -14,7 +16,7 @@ on macOS, Windows and Linux.
 
 | Area | State |
 |---|---|
-| Providers | Claude, Codex, Cursor, Antigravity, Grok, OpenRouter, Z.ai |
+| Providers | Claude, Codex, Cursor, Antigravity, Grok, OpenCode, OpenRouter, Z.ai |
 | UI | Web dashboard only (`GET /`) — no desktop UI |
 | API | Full `/v1/usage` parity with macOS; identical wire format |
 | Refresh | Every 5 minutes (`--interval`), no manual trigger yet |
@@ -149,6 +151,7 @@ OpenUsage reads credentials already on your machine. Paths only; no secrets are 
 | **Cursor** | `~/.config/cursor/auth.json` (the `cursor-agent` CLI), or `~/.config/Cursor/User/globalStorage/state.vscdb` (desktop app, needs `sqlite3`) |
 | **Antigravity** | `~/.gemini/antigravity-cli/antigravity-oauth-token`, written by the `agy` CLI |
 | **Grok** | `~/.grok/auth.json` and `~/.grok/logs/unified.jsonl` |
+| **OpenCode** | `~/.local/share/opencode/auth.json` (the `opencode-go` key; respects `OPENCODE_DATA_DIR` / `XDG_DATA_HOME`) |
 | **OpenRouter** | `~/.aider/oauth-keys.env`, `~/.env`, `~/.aider.conf.yml`, `$OPENROUTER_API_KEY`, `~/.config/openusage/openrouter.json`, `~/.config/openrouter/key.json` |
 | **Z.ai** | `$ZAI_API_KEY` / `$Z_AI_API_KEY`, or `~/.config/openusage/zai.json` |
 
@@ -195,7 +198,7 @@ expire.
 | Settings, Customize, pins, shortcuts | None — `--port` / `--listen` / `--interval` / `--token` |
 | Sparkle auto-update | None; rebuild from source |
 | Notifications | None |
-| 9 providers | 7 (no Copilot, no Devin) |
+| 10 providers | 8 (no Copilot, no Devin) |
 
 ## Known limitations
 
