@@ -68,6 +68,50 @@ final class OpenCodeAuthStoreTests: XCTestCase {
 
         XCTAssertEqual(store.loadGoKey(), .key("custom-key"))
     }
+
+    // OpenCode 2 signs in with an account token in opencode.db; auth.json keeps a stale, expired key.
+    func testPrefersDatabaseAccountTokenOverStaleAuthJSONKey() {
+        let (store, files) = makeDatabaseStore(sqlite: FakeSQLite(values: ["'opencode'": "account-token"]))
+        files.files[store.authFilePath] = #"{"opencode-go":{"type":"api","key":"expired-key"}}"#
+        XCTAssertEqual(store.loadGoKey(), .key("account-token"))
+    }
+
+    func testFallsBackToDatabaseGoKeyWithoutAccountToken() {
+        let (store, _) = makeDatabaseStore(sqlite: FakeSQLite(values: ["'opencode-go'": "db-go-key"]))
+        XCTAssertEqual(store.loadGoKey(), .key("db-go-key"))
+    }
+
+    func testAccountTokenQuerySkipsExpiredTokens() {
+        let sql = OpenCodeAuthStore.credentialSQLAccountToken(nowMilliseconds: 1_700_000_000_000)
+        XCTAssertTrue(sql.contains("'$.expires') > 1700000000000"))
+    }
+
+    func testFallsBackToAuthJSONWhenDatabaseUnreadable() {
+        let (store, files) = makeDatabaseStore(sqlite: ThrowingSQLite())
+        files.files[store.authFilePath] = #"{"opencode-go":{"type":"api","key":"file-key"}}"#
+        XCTAssertEqual(store.loadGoKey(), .key("file-key"))
+    }
+
+    private func makeDatabaseStore(sqlite: SQLiteAccessing) -> (OpenCodeAuthStore, FakeFiles) {
+        let files = FakeFiles()
+        let store = OpenCodeAuthStore(
+            files: files,
+            environment: FakeEnvironment(),
+            homeDirectory: { URL(fileURLWithPath: "/home/test") },
+            sqlite: sqlite,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        files.files[store.databasePath] = ""
+        return (store, files)
+    }
+}
+
+private struct ThrowingSQLite: SQLiteAccessing {
+    func queryValue(path: String, sql: String) throws -> String? {
+        throw SQLiteError.queryFailed("no such table: credential")
+    }
+
+    func execute(path: String, sql: String) throws {}
 }
 
 // MARK: - OpenCodeUsageMapperTests

@@ -19,4 +19,8 @@ enum OpenCodePaths {
     static func authFilePath(dataDirectory: String) -> String {
         dataDirectory.trimmingTrailingSlashes + "/auth.json"
     }
+
+    static func databasePath(dataDirectory: String) -> String {
+        dataDirectory.trimmingTrailingSlashes + "/opencode.db"
+    }
 }
